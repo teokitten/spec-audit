@@ -1,0 +1,1264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenAPI Spec Audit</title>
+<meta name="description" content="Audits an OpenAPI spec for documentation quality and produces a scored, traceable report of what's missing." />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<style>
+  :root {
+    --bg: #1C1917;
+    --card: #292524;
+    --divider: #3a3532;
+    --accent: #F97316;
+    --text: #FAFAF9;
+    --text-secondary: #A8A29E;
+    --text-muted: #78716C;
+    --gray-mid: #78716C;
+    --gray-dark: #57534E;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+
+  header { margin-bottom: 40px; }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    letter-spacing: -0.02em;
+  }
+
+  .tagline {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin: 0;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+
+  .input-row { margin-bottom: 18px; }
+  .input-row:last-of-type { margin-bottom: 0; }
+
+  textarea {
+    width: 100%;
+    min-height: 160px;
+    background: var(--bg);
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 14px;
+    resize: vertical;
+  }
+
+  textarea:focus, input[type="text"]:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .url-row { display: flex; gap: 10px; }
+
+  input[type="text"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 14px;
+    font-family: system-ui, sans-serif;
+  }
+
+  select {
+    background: var(--bg);
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 14px;
+    font-family: system-ui, sans-serif;
+  }
+
+  .example-row select { width: 100%; }
+
+  button {
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    padding: 10px 18px;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn-secondary {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--divider);
+  }
+  .btn-secondary:hover { border-color: var(--text-muted); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+  }
+  .btn-primary:hover { opacity: 0.92; }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 22px;
+  }
+
+  .status-msg {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .error-card {
+    border: 1px solid var(--accent);
+  }
+  .error-card p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  /* Summary card */
+  .summary-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-bottom: 26px;
+  }
+
+  .grade-block {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .grade-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+    font-size: 20px;
+  }
+
+  .score-block {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .score-num {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .score-den {
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+
+  .summary-stats {
+    display: flex;
+    gap: 36px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-num {
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px solid var(--divider);
+    padding-top: 22px;
+  }
+
+  .breakdown-row {
+    display: grid;
+    grid-template-columns: 220px 1fr 40px;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .breakdown-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .breakdown-bar-track {
+    background: var(--bg);
+    border-radius: 4px;
+    height: 4px;
+    overflow: hidden;
+  }
+
+  .breakdown-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+  }
+
+  .breakdown-count {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .breakdown-empty {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* Table card */
+  .table-card { padding: 20px 20px 8px; }
+
+  .table-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 4px 8px 18px;
+    flex-wrap: wrap;
+  }
+
+  .table-controls input[type="text"] {
+    max-width: 220px;
+  }
+
+  .result-count {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  th.col-score, th.col-grade, th.col-issues { text-align: right; }
+
+  tbody tr.endpoint-row {
+    cursor: pointer;
+  }
+
+  tbody tr.endpoint-row:hover {
+    background: rgba(250, 250, 249, 0.03);
+  }
+
+  tbody td {
+    padding: 12px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--divider);
+    vertical-align: middle;
+  }
+
+  td.col-score, td.col-grade, td.col-issues { text-align: right; }
+
+  .method-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    background: var(--bg);
+    border-radius: 4px;
+    padding: 3px 8px;
+  }
+
+  .path-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .chevron {
+    display: inline-block;
+    color: var(--text-muted);
+    font-size: 10px;
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  tr.expanded .chevron {
+    transform: rotate(90deg);
+  }
+
+  .path-text {
+    color: var(--text);
+  }
+
+  tr.detail-row td {
+    padding: 0 12px 20px 34px;
+    background: rgba(0,0,0,0.15);
+  }
+
+  .issue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 12px;
+  }
+
+  .issue {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .issue-field {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .issue-msg {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .no-issues {
+    padding: 16px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  footer {
+    margin-top: 48px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+  footer a { color: var(--text-secondary); }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 40px 16px 64px; }
+    .breakdown-row { grid-template-columns: 1fr; gap: 6px; }
+    .breakdown-count { text-align: left; }
+    .summary-top { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>OpenAPI Spec Audit</h1>
+    <p class="tagline">
+      Paste an OpenAPI 3.0/3.1 spec and get a scored report of the documentation gaps a
+      technical writer would flag in review – missing descriptions, absent examples,
+      undocumented errors, and loose type constraints – the things an engineer skimming
+      the spec tends to miss. This does not render your spec as reference docs; Swagger
+      UI, Redoc, and Scalar already do that well.
+    </p>
+  </header>
+
+  <section class="card input-card" id="inputCard">
+    <div class="input-row">
+      <label class="field-label" for="specInput">Paste an OpenAPI spec (JSON or YAML)</label>
+      <textarea id="specInput" placeholder="Paste your OpenAPI 3.0/3.1 spec here…" spellcheck="false"></textarea>
+    </div>
+    <div class="input-row url-row">
+      <input type="text" id="urlInput" placeholder="…or fetch a spec from a URL" />
+      <button id="fetchUrlBtn" class="btn-secondary" type="button">Fetch</button>
+    </div>
+    <div class="input-row example-row">
+      <label class="field-label" for="exampleSelect">Or load an example</label>
+      <select id="exampleSelect">
+        <option value="">Select an example spec…</option>
+        <option value="petstore">Swagger Petstore – small, ~13 endpoints</option>
+        <option value="github">GitHub REST API – large, 600+ endpoints</option>
+        <option value="stripe">Stripe API – large, 500+ endpoints</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button id="runBtn" class="btn-primary" type="button">Run audit</button>
+      <span class="status-msg" id="statusMsg"></span>
+    </div>
+  </section>
+
+  <section class="card error-card" id="errorCard" hidden>
+    <p id="errorText"></p>
+  </section>
+
+  <section id="reportSection" hidden>
+    <section class="card summary-card">
+      <div class="summary-top">
+        <div class="grade-block">
+          <span class="grade-badge" id="gradeBadge">–</span>
+          <div class="score-block">
+            <span class="score-num" id="scoreNum">0</span>
+            <span class="score-den">/100</span>
+          </div>
+        </div>
+        <div class="summary-stats">
+          <div class="stat">
+            <span class="stat-num" id="endpointCount">0</span>
+            <span class="stat-label">endpoints audited</span>
+          </div>
+          <div class="stat">
+            <span class="stat-num" id="issueCount">0</span>
+            <span class="stat-label">issues found</span>
+          </div>
+        </div>
+      </div>
+      <div class="breakdown" id="breakdown"></div>
+    </section>
+
+    <section class="card table-card">
+      <div class="table-controls">
+        <input type="text" id="searchInput" placeholder="Filter by path…" />
+        <select id="gradeFilter">
+          <option value="0">All grades</option>
+          <option value="90">Below A</option>
+          <option value="75">Below B</option>
+          <option value="60">Below C</option>
+          <option value="40">Below D</option>
+        </select>
+        <select id="sortSelect">
+          <option value="score-asc">Lowest score first</option>
+          <option value="score-desc">Highest score first</option>
+          <option value="issues-desc">Most issues first</option>
+          <option value="path-asc">Path, A to Z</option>
+        </select>
+        <span class="result-count" id="resultCount"></span>
+      </div>
+      <table id="endpointTable">
+        <thead>
+          <tr>
+            <th class="col-method">Method</th>
+            <th class="col-path">Path</th>
+            <th class="col-score">Score</th>
+            <th class="col-grade">Grade</th>
+            <th class="col-issues">Issues</th>
+          </tr>
+        </thead>
+        <tbody id="endpointTbody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" hidden>No endpoints match the current filter.</div>
+    </section>
+  </section>
+
+  <footer>
+    Runs entirely in your browser – nothing you paste is stored or transmitted by this tool.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // Example specs, fetched at runtime so they never go stale.
+  // ---------------------------------------------------------------------
+  var EXAMPLES = {
+    petstore: "https://petstore3.swagger.io/api/v3/openapi.json",
+    github: "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json",
+    stripe: "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json"
+  };
+
+  var HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"];
+
+  // -----------------------------------------------------------------------
+  // SCORING WEIGHTS
+  // Every check below produces one or more "check instances" of the form
+  // { weight, passed }. An endpoint's score is the weighted pass rate:
+  //   score = round( sum(weight where passed) / sum(weight) * 100 )
+  //
+  // Weight of 2 (higher priority – these are the gaps that block a developer
+  // outright, not just slow them down):
+  //   - operation has no summary/description
+  //   - a parameter has no description
+  //   - a 2xx-only endpoint has no error responses documented at all
+  //   - a documented error response has no usable description
+  //
+  // Weight of 1 (lower priority – these are quality-of-life gaps):
+  //   - missing example on a request body or primary success response
+  //   - a string parameter whose name implies a fixed value set has no enum/format/pattern/length limit
+  //   - a numeric parameter has no minimum/maximum
+  //   - a parameter's `required` flag is left unset
+  //   - an unresolvable $ref (can't be checked further, so it's counted once as a gap)
+  //
+  // The "restates the parameter name" heuristic is informational only: it is
+  // reported as an issue but never affects the score, per the instruction to
+  // flag-not-fail on a heuristic that can produce false positives.
+  // -----------------------------------------------------------------------
+  var WEIGHT_HIGH = 2;
+  var WEIGHT_LOW = 1;
+
+  var CATEGORY_LABELS = {
+    description: "Missing or unhelpful descriptions",
+    "low-quality": "Descriptions that just restate the name",
+    examples: "Missing examples",
+    errors: "Undocumented error responses",
+    constraints: "Missing type constraints",
+    required: "Ambiguous required status",
+    unresolvable: "Unresolvable references",
+    "parse-error": "Endpoints that failed to parse"
+  };
+  var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "unresolvable", "parse-error"];
+
+  // ---------------------------------------------------------------------
+  // DOM references
+  // ---------------------------------------------------------------------
+  var specInput = document.getElementById("specInput");
+  var urlInput = document.getElementById("urlInput");
+  var fetchUrlBtn = document.getElementById("fetchUrlBtn");
+  var exampleSelect = document.getElementById("exampleSelect");
+  var runBtn = document.getElementById("runBtn");
+  var statusMsg = document.getElementById("statusMsg");
+  var errorCard = document.getElementById("errorCard");
+  var errorText = document.getElementById("errorText");
+  var reportSection = document.getElementById("reportSection");
+
+  var gradeBadge = document.getElementById("gradeBadge");
+  var scoreNum = document.getElementById("scoreNum");
+  var endpointCountEl = document.getElementById("endpointCount");
+  var issueCountEl = document.getElementById("issueCount");
+  var breakdownEl = document.getElementById("breakdown");
+
+  var searchInput = document.getElementById("searchInput");
+  var gradeFilter = document.getElementById("gradeFilter");
+  var sortSelect = document.getElementById("sortSelect");
+  var resultCount = document.getElementById("resultCount");
+  var endpointTbody = document.getElementById("endpointTbody");
+  var emptyState = document.getElementById("emptyState");
+
+  var state = {
+    endpoints: [],
+    view: []
+  };
+
+  // ---------------------------------------------------------------------
+  // Small utilities
+  // ---------------------------------------------------------------------
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function setStatus(msg) { statusMsg.textContent = msg || ""; }
+
+  function showError(msg) {
+    errorText.textContent = msg;
+    errorCard.hidden = false;
+  }
+
+  function clearError() {
+    errorCard.hidden = true;
+    errorText.textContent = "";
+  }
+
+  function isMissing(s) {
+    return typeof s !== "string" || s.trim().length === 0;
+  }
+
+  function isUselessShort(s) {
+    return typeof s === "string" && s.trim().length > 0 && s.trim().length < 10;
+  }
+
+  function normalize(s) {
+    return String(s).toLowerCase().replace(/[_\-\s]+/g, "");
+  }
+
+  var FILLER_WORDS = ["the", "a", "an", "id", "value", "of", "for", "to", "this"];
+
+  function restatesName(name, desc) {
+    if (!name || !desc) return false;
+    var n = normalize(name);
+    var words = String(desc).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    var meaningful = words.filter(function (w) { return FILLER_WORDS.indexOf(w) === -1; });
+    if (meaningful.length === 0 || meaningful.length > 3) return false;
+    var m = normalize(meaningful.join(""));
+    if (!m) return false;
+    return m === n || n.indexOf(m) !== -1 || m.indexOf(n) !== -1;
+  }
+
+  var CONSTRAINABLE_NAME = /(status|type|state|category|kind|mode|visibility|sort|order|direction|role|level|priority|scope|method)s?$/i;
+
+  // ---------------------------------------------------------------------
+  // $ref resolution. Follows chained refs (a ref pointing at another ref)
+  // with a cycle guard, which covers the common real-world case of specs
+  // that reference a shared schema which itself references another one.
+  // Returns { __unresolvable: true, ref } if a ref can't be found, rather
+  // than throwing, so the caller can report it and move on.
+  // ---------------------------------------------------------------------
+  function resolveRefPath(spec, ref) {
+    if (typeof ref !== "string" || ref.indexOf("#/") !== 0) return undefined;
+    var parts = ref.slice(2).split("/").map(function (p) {
+      return decodeURIComponent(p.replace(/~1/g, "/").replace(/~0/g, "~"));
+    });
+    var node = spec;
+    for (var i = 0; i < parts.length; i++) {
+      if (node == null || typeof node !== "object") return undefined;
+      node = node[parts[i]];
+    }
+    return node;
+  }
+
+  function deref(spec, obj) {
+    var seen = new Set();
+    var cur = obj;
+    var guard = 0;
+    while (cur && typeof cur === "object" && typeof cur.$ref === "string") {
+      if (seen.has(cur.$ref) || guard++ > 20) {
+        return { __unresolvable: true, ref: cur.$ref };
+      }
+      seen.add(cur.$ref);
+      var resolved = resolveRefPath(spec, cur.$ref);
+      if (resolved === undefined || resolved === null || typeof resolved !== "object") {
+        return { __unresolvable: true, ref: cur.$ref };
+      }
+      cur = resolved;
+    }
+    return cur;
+  }
+
+  function firstContent(content) {
+    if (!content || typeof content !== "object") return null;
+    var keys = Object.keys(content);
+    if (keys.length === 0) return null;
+    var preferred = keys.indexOf("application/json") !== -1 ? "application/json" : keys[0];
+    return content[preferred];
+  }
+
+  function hasExample(mediaTypeObj, schema) {
+    if (mediaTypeObj && mediaTypeObj.example !== undefined) return true;
+    if (mediaTypeObj && mediaTypeObj.examples && Object.keys(mediaTypeObj.examples).length > 0) return true;
+    if (schema && schema.example !== undefined) return true;
+    if (schema && schema.properties && typeof schema.properties === "object") {
+      var props = schema.properties;
+      for (var key in props) {
+        if (props[key] && props[key].example !== undefined) return true;
+      }
+    }
+    return false;
+  }
+
+  // ---------------------------------------------------------------------
+  // Parsing
+  // ---------------------------------------------------------------------
+  function parseSpecText(text) {
+    var trimmed = text.trim();
+    if (!trimmed) {
+      return { error: "Paste a spec, enter a URL, or load an example to get started." };
+    }
+    var spec;
+    try {
+      spec = JSON.parse(trimmed);
+      return { spec: spec };
+    } catch (jsonErr) {
+      try {
+        spec = jsyaml.load(trimmed);
+      } catch (yamlErr) {
+        return { error: "This doesn't look like valid JSON or YAML. Check for syntax errors (a stray comma, an unclosed bracket, inconsistent indentation) and try again." };
+      }
+    }
+    if (!spec || typeof spec !== "object") {
+      return { error: "This doesn't look like valid JSON or YAML. Check for syntax errors and try again." };
+    }
+    return { spec: spec };
+  }
+
+  function validateSpec(spec) {
+    if (spec.swagger && !spec.openapi) {
+      return "This looks like a Swagger 2.0 document (found a `swagger` field). This tool audits OpenAPI 3.0/3.1 documents – convert the spec to OpenAPI 3.x and try again.";
+    }
+    if (!spec.paths || typeof spec.paths !== "object" || Object.keys(spec.paths).length === 0) {
+      return "This doesn't look like an OpenAPI document – no `paths` field was found.";
+    }
+    return null;
+  }
+
+  // ---------------------------------------------------------------------
+  // Parameter merging: path-level shared parameters + operation-level,
+  // operation params win on (name, in) collisions, per the OpenAPI spec.
+  // ---------------------------------------------------------------------
+  function mergeParams(spec, sharedParams, opParams, unresolvedOut) {
+    var map = new Map();
+    function addAll(arr) {
+      if (!Array.isArray(arr)) return;
+      for (var i = 0; i < arr.length; i++) {
+        var p = deref(spec, arr[i]);
+        if (p.__unresolvable) {
+          unresolvedOut.push(p.ref);
+          continue;
+        }
+        if (!p.name || !p.in) continue;
+        map.set(p.in + ":" + p.name, p);
+      }
+    }
+    addAll(sharedParams);
+    addAll(opParams);
+    return Array.from(map.values());
+  }
+
+  // ---------------------------------------------------------------------
+  // Per-endpoint checks
+  // ---------------------------------------------------------------------
+  function buildEndpoint(spec, pathKey, method, op, sharedParams) {
+    var checks = [];
+    var issues = [];
+    function addCheck(weight, passed) { checks.push({ weight: weight, passed: passed }); }
+    function addIssue(category, field, message) { issues.push({ category: category, field: field, message: message }); }
+
+    var unresolved = [];
+    var params = mergeParams(spec, sharedParams, op.parameters, unresolved);
+    for (var u = 0; u < unresolved.length; u++) {
+      addCheck(WEIGHT_LOW, false);
+      addIssue("unresolvable", "parameter reference", "A parameter reference (\"" + unresolved[u] + "\") could not be resolved – check components/parameters for a missing or renamed entry. Tooling and readers relying on this reference will break.");
+    }
+
+    var label = method.toUpperCase() + " " + pathKey;
+
+    // 1. Operation description / summary
+    var opDesc = op.description || op.summary;
+    if (isMissing(opDesc)) {
+      addCheck(WEIGHT_HIGH, false);
+      addIssue("description", label, "This endpoint has no summary or description – a developer scanning the spec has no way to tell what it does without reading the source code.");
+    } else if (isUselessShort(opDesc)) {
+      addCheck(WEIGHT_HIGH, false);
+      addIssue("description", label, "The description (\"" + opDesc + "\") is only " + opDesc.trim().length + " characters – too short to explain what the endpoint actually does.");
+    } else {
+      addCheck(WEIGHT_HIGH, true);
+    }
+
+    // 2. Parameter descriptions (+ restates-name heuristic, + type constraints, + required ambiguity)
+    for (var pi = 0; pi < params.length; pi++) {
+      var p = params[pi];
+      var pLabel = "parameter `" + p.name + "` (" + p.in + ")";
+
+      if (isMissing(p.description)) {
+        addCheck(WEIGHT_HIGH, false);
+        addIssue("description", pLabel, "No description – a developer calling this endpoint has no explanation of what this parameter controls or what values it accepts.");
+      } else if (isUselessShort(p.description)) {
+        addCheck(WEIGHT_HIGH, false);
+        addIssue("description", pLabel, "The description (\"" + p.description + "\") is only " + p.description.trim().length + " characters – too short to be useful, likely just a placeholder.");
+      } else {
+        addCheck(WEIGHT_HIGH, true);
+        if (restatesName(p.name, p.description)) {
+          addIssue("low-quality", pLabel, "The description (\"" + p.description + "\") just restates the parameter name in words – it adds no information a developer couldn't already guess from the name itself.");
+        }
+      }
+
+      var schema = p.schema ? deref(spec, p.schema) : null;
+      if (schema && schema.__unresolvable) {
+        addCheck(WEIGHT_LOW, false);
+        addIssue("unresolvable", pLabel, "The parameter's schema reference (\"" + schema.ref + "\") could not be resolved, so its type and constraints can't be checked.");
+        schema = null;
+      }
+      if (schema) {
+        if (schema.type === "string" && CONSTRAINABLE_NAME.test(p.name || "")) {
+          var constrained = schema.enum || schema.format || schema.pattern || schema.minLength != null || schema.maxLength != null;
+          addCheck(WEIGHT_LOW, !!constrained);
+          if (!constrained) {
+            addIssue("constraints", pLabel, "This is a free-form string with no enum, format, or length limit, even though the name suggests a fixed set of valid values – a developer will have to guess which strings are actually accepted, or trial-and-error against the API.");
+          }
+        } else if (schema.type === "integer" || schema.type === "number") {
+          var bounded = schema.minimum != null || schema.maximum != null;
+          addCheck(WEIGHT_LOW, bounded);
+          if (!bounded) {
+            addIssue("constraints", pLabel, "This numeric parameter has no minimum or maximum – a developer won't know the valid range without testing the API directly.");
+          }
+        }
+      }
+
+      if (p.in !== "path") {
+        var hasRequired = typeof p.required === "boolean";
+        addCheck(WEIGHT_LOW, hasRequired);
+        if (!hasRequired) {
+          addIssue("required", pLabel, "Whether this parameter is required isn't explicitly stated – a developer has to assume it's optional (the OpenAPI default), which may be wrong and cause failed requests.");
+        }
+      }
+    }
+
+    // 3. Examples: request body + primary success response
+    if (op.requestBody) {
+      var rb = deref(spec, op.requestBody);
+      if (rb.__unresolvable) {
+        addCheck(WEIGHT_LOW, false);
+        addIssue("unresolvable", "requestBody", "The requestBody reference (\"" + rb.ref + "\") could not be resolved – check components/requestBodies for a missing or renamed entry.");
+      } else {
+        var rbMedia = firstContent(rb.content);
+        if (rbMedia) {
+          var rbSchema = rbMedia.schema ? deref(spec, rbMedia.schema) : null;
+          if (rbSchema && rbSchema.__unresolvable) {
+            addCheck(WEIGHT_LOW, false);
+            addIssue("unresolvable", "requestBody schema", "The request body schema reference (\"" + rbSchema.ref + "\") could not be resolved.");
+          } else {
+            var rbEx = hasExample(rbMedia, rbSchema);
+            addCheck(WEIGHT_LOW, rbEx);
+            if (!rbEx) {
+              addIssue("examples", "requestBody", "The request body has no example payload – a developer has to guess the shape of a valid request instead of copying a working sample.");
+            }
+          }
+        }
+      }
+    }
+
+    var responseEntries = op.responses && typeof op.responses === "object" ? Object.entries(op.responses) : [];
+    var successEntry = responseEntries.filter(function (e) { return /^2\d\d$/.test(e[0]); })[0];
+    if (successEntry) {
+      var sResp = deref(spec, successEntry[1]);
+      if (sResp.__unresolvable) {
+        addCheck(WEIGHT_LOW, false);
+        addIssue("unresolvable", "response " + successEntry[0], "The " + successEntry[0] + " response reference (\"" + sResp.ref + "\") could not be resolved.");
+      } else {
+        var sMedia = firstContent(sResp.content);
+        if (sMedia) {
+          var sSchema = sMedia.schema ? deref(spec, sMedia.schema) : null;
+          if (sSchema && sSchema.__unresolvable) {
+            addCheck(WEIGHT_LOW, false);
+            addIssue("unresolvable", "response " + successEntry[0] + " schema", "The " + successEntry[0] + " response schema reference (\"" + sSchema.ref + "\") could not be resolved.");
+          } else {
+            var sEx = hasExample(sMedia, sSchema);
+            addCheck(WEIGHT_LOW, sEx);
+            if (!sEx) {
+              addIssue("examples", "response " + successEntry[0], "The " + successEntry[0] + " response has no example – a developer building against this endpoint can't see what a real response actually looks like.");
+            }
+          }
+        }
+      }
+    }
+
+    // 4. Error responses. `default` counts as documenting the error case,
+    // since many specs use it instead of enumerating every 4xx/5xx.
+    var has2xx = responseEntries.some(function (e) { return /^2\d\d$/.test(e[0]); });
+    var errorEntries = responseEntries.filter(function (e) { return /^[45]\d\d$/.test(e[0]) || e[0] === "default"; });
+
+    if (has2xx) {
+      addCheck(WEIGHT_HIGH, errorEntries.length > 0);
+      if (errorEntries.length === 0) {
+        addIssue("errors", label, "This endpoint documents success responses but no error responses at all – a developer has no idea what happens on bad input, missing auth, a not-found resource, or a server error, or how to handle any of it.");
+      }
+    }
+
+    for (var ei = 0; ei < errorEntries.length; ei++) {
+      var code = errorEntries[ei][0];
+      var resp = deref(spec, errorEntries[ei][1]);
+      var respLabel = "response " + code;
+      if (resp.__unresolvable) {
+        addCheck(WEIGHT_HIGH, false);
+        addIssue("unresolvable", respLabel, "The " + code + " response reference (\"" + resp.ref + "\") could not be resolved.");
+        continue;
+      }
+      var eMedia = firstContent(resp.content);
+      var eSchema = eMedia && eMedia.schema ? deref(spec, eMedia.schema) : null;
+      var eSchemaOk = eSchema && !eSchema.__unresolvable;
+      var descOk = !isMissing(resp.description) && !isUselessShort(resp.description);
+      addCheck(WEIGHT_HIGH, descOk);
+      if (!descOk) {
+        var bodyNote = eSchemaOk ? "" : " and no schema describing the error body";
+        addIssue("errors", respLabel, "This response has no meaningful description of when it occurs" + bodyNote + " – a developer can't tell what triggered it" + (eSchemaOk ? "" : " or how to parse the error body") + ".");
+      }
+    }
+
+    var totalWeight = checks.reduce(function (s, c) { return s + c.weight; }, 0);
+    var earned = checks.reduce(function (s, c) { return s + (c.passed ? c.weight : 0); }, 0);
+    var score = totalWeight === 0 ? 100 : Math.round((earned / totalWeight) * 100);
+
+    return { path: pathKey, method: method.toUpperCase(), score: score, issues: issues };
+  }
+
+  function extractEndpoints(spec) {
+    var endpoints = [];
+    var paths = spec.paths || {};
+    var pathKeys = Object.keys(paths);
+    for (var pk = 0; pk < pathKeys.length; pk++) {
+      var pathKey = pathKeys[pk];
+      var pathItemRaw = paths[pathKey];
+      if (!pathItemRaw || typeof pathItemRaw !== "object") continue;
+      var pathItem = deref(spec, pathItemRaw);
+      if (pathItem.__unresolvable) {
+        endpoints.push({
+          path: pathKey, method: "?", score: 0,
+          issues: [{ category: "unresolvable", field: pathKey, message: "This path item's reference (\"" + pathItem.ref + "\") could not be resolved, so none of its operations could be checked." }]
+        });
+        continue;
+      }
+      var sharedParams = Array.isArray(pathItem.parameters) ? pathItem.parameters : [];
+      for (var mi = 0; mi < HTTP_METHODS.length; mi++) {
+        var method = HTTP_METHODS[mi];
+        var op = pathItem[method];
+        if (!op || typeof op !== "object") continue;
+        try {
+          endpoints.push(buildEndpoint(spec, pathKey, method, op, sharedParams));
+        } catch (e) {
+          endpoints.push({
+            path: pathKey, method: method.toUpperCase(), score: 0,
+            issues: [{ category: "parse-error", field: method.toUpperCase() + " " + pathKey, message: "This endpoint could not be fully checked due to an unexpected error in its definition (" + e.message + ")." }]
+          });
+        }
+      }
+    }
+    return endpoints;
+  }
+
+  function gradeFor(score) {
+    if (score >= 90) return "A";
+    if (score >= 75) return "B";
+    if (score >= 60) return "C";
+    if (score >= 40) return "D";
+    return "F";
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  function renderSummary(endpoints) {
+    var overall = endpoints.length ? Math.round(endpoints.reduce(function (s, e) { return s + e.score; }, 0) / endpoints.length) : 0;
+    var grade = gradeFor(overall);
+    var totalIssues = endpoints.reduce(function (s, e) { return s + e.issues.length; }, 0);
+
+    gradeBadge.textContent = grade;
+    scoreNum.textContent = overall;
+    endpointCountEl.textContent = endpoints.length;
+    issueCountEl.textContent = totalIssues;
+
+    var byCategory = {};
+    endpoints.forEach(function (e) {
+      e.issues.forEach(function (i) {
+        byCategory[i.category] = (byCategory[i.category] || 0) + 1;
+      });
+    });
+
+    var rows = CATEGORY_ORDER.filter(function (c) { return byCategory[c]; })
+      .map(function (c) { return { category: c, count: byCategory[c] }; })
+      .sort(function (a, b) { return b.count - a.count; });
+
+    if (rows.length === 0) {
+      breakdownEl.innerHTML = '<div class="breakdown-empty">No issues found – every check passed.</div>';
+      return;
+    }
+
+    var max = rows[0].count;
+    breakdownEl.innerHTML = rows.map(function (r, idx) {
+      var pct = Math.max(4, Math.round((r.count / max) * 100));
+      var color = idx === 0 ? "var(--accent)" : (idx % 2 === 1 ? "var(--gray-mid)" : "var(--gray-dark)");
+      return '<div class="breakdown-row">' +
+        '<span class="breakdown-label">' + esc(CATEGORY_LABELS[r.category] || r.category) + '</span>' +
+        '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span>' +
+        '<span class="breakdown-count">' + r.count + '</span>' +
+        '</div>';
+    }).join("");
+  }
+
+  function currentFilters() {
+    return {
+      search: searchInput.value.trim().toLowerCase(),
+      threshold: parseInt(gradeFilter.value, 10) || 0,
+      sort: sortSelect.value
+    };
+  }
+
+  function applyFilters() {
+    var f = currentFilters();
+    var view = state.endpoints.filter(function (e) {
+      if (f.search && e.path.toLowerCase().indexOf(f.search) === -1) return false;
+      if (f.threshold && !(e.score < f.threshold)) return false;
+      return true;
+    });
+
+    view.sort(function (a, b) {
+      switch (f.sort) {
+        case "score-desc": return b.score - a.score;
+        case "issues-desc": return b.issues.length - a.issues.length;
+        case "path-asc": return a.path.localeCompare(b.path) || a.method.localeCompare(b.method);
+        case "score-asc":
+        default: return a.score - b.score;
+      }
+    });
+
+    state.view = view;
+    renderTable();
+  }
+
+  function renderTable() {
+    var view = state.view;
+    resultCount.textContent = view.length + " of " + state.endpoints.length + " endpoints";
+    emptyState.hidden = view.length !== 0;
+
+    var html = view.map(function (e, i) {
+      var grade = gradeFor(e.score);
+      return '<tr class="endpoint-row" data-viewidx="' + i + '">' +
+        '<td class="col-method"><span class="method-pill">' + esc(e.method) + '</span></td>' +
+        '<td class="col-path"><span class="path-cell"><span class="chevron">&#9656;</span><span class="path-text">' + esc(e.path) + '</span></span></td>' +
+        '<td class="col-score">' + e.score + '</td>' +
+        '<td class="col-grade">' + grade + '</td>' +
+        '<td class="col-issues">' + e.issues.length + '</td>' +
+        '</tr>';
+    }).join("");
+
+    endpointTbody.innerHTML = html;
+  }
+
+  function buildDetailRow(endpoint) {
+    var tr = document.createElement("tr");
+    tr.className = "detail-row";
+    var td = document.createElement("td");
+    td.colSpan = 5;
+
+    if (endpoint.issues.length === 0) {
+      var noIssues = document.createElement("div");
+      noIssues.className = "no-issues";
+      noIssues.textContent = "No issues found for this endpoint – every check passed.";
+      td.appendChild(noIssues);
+    } else {
+      var list = document.createElement("div");
+      list.className = "issue-list";
+      endpoint.issues.forEach(function (issue) {
+        var row = document.createElement("div");
+        row.className = "issue";
+        var field = document.createElement("span");
+        field.className = "issue-field";
+        field.textContent = issue.field;
+        var msg = document.createElement("span");
+        msg.className = "issue-msg";
+        msg.textContent = issue.message;
+        row.appendChild(field);
+        row.appendChild(msg);
+        list.appendChild(row);
+      });
+      td.appendChild(list);
+    }
+
+    tr.appendChild(td);
+    return tr;
+  }
+
+  endpointTbody.addEventListener("click", function (e) {
+    var tr = e.target.closest("tr.endpoint-row");
+    if (!tr) return;
+    var idx = parseInt(tr.dataset.viewidx, 10);
+    var endpoint = state.view[idx];
+    if (!endpoint) return;
+
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains("detail-row")) {
+      next.remove();
+      tr.classList.remove("expanded");
+      return;
+    }
+
+    // collapse any other open row for a cleaner single-focus view
+    var openDetail = endpointTbody.querySelector("tr.detail-row");
+    if (openDetail) {
+      var openTr = openDetail.previousElementSibling;
+      openDetail.remove();
+      if (openTr) openTr.classList.remove("expanded");
+    }
+
+    tr.classList.add("expanded");
+    tr.after(buildDetailRow(endpoint));
+  });
+
+  searchInput.addEventListener("input", applyFilters);
+  gradeFilter.addEventListener("change", applyFilters);
+  sortSelect.addEventListener("change", applyFilters);
+
+  // ---------------------------------------------------------------------
+  // Orchestration
+  // ---------------------------------------------------------------------
+  function runAudit() {
+    clearError();
+    reportSection.hidden = true;
+    var text = specInput.value;
+
+    setStatus("Parsing spec…");
+    runBtn.disabled = true;
+
+    setTimeout(function () {
+      try {
+        var parsed = parseSpecText(text);
+        if (parsed.error) {
+          showError(parsed.error);
+          setStatus("");
+          runBtn.disabled = false;
+          return;
+        }
+        var validationError = validateSpec(parsed.spec);
+        if (validationError) {
+          showError(validationError);
+          setStatus("");
+          runBtn.disabled = false;
+          return;
+        }
+
+        setStatus("Running documentation checks…");
+
+        setTimeout(function () {
+          try {
+            var endpoints = extractEndpoints(parsed.spec);
+            if (endpoints.length === 0) {
+              showError("No operations (GET, POST, PUT, PATCH, DELETE, etc.) were found under any path in this spec.");
+              setStatus("");
+              runBtn.disabled = false;
+              return;
+            }
+            state.endpoints = endpoints;
+            renderSummary(endpoints);
+            searchInput.value = "";
+            gradeFilter.value = "0";
+            sortSelect.value = "score-asc";
+            applyFilters();
+            reportSection.hidden = false;
+            setStatus("Audited " + endpoints.length + " endpoints.");
+          } catch (e) {
+            showError("Something went wrong while checking this spec: " + e.message);
+            setStatus("");
+          } finally {
+            runBtn.disabled = false;
+          }
+        }, 10);
+      } catch (e) {
+        showError("Something went wrong while parsing this spec: " + e.message);
+        setStatus("");
+        runBtn.disabled = false;
+      }
+    }, 10);
+  }
+
+  runBtn.addEventListener("click", runAudit);
+
+  fetchUrlBtn.addEventListener("click", function () {
+    var url = urlInput.value.trim();
+    if (!url) return;
+    clearError();
+    setStatus("Fetching " + url + " …");
+    fetchUrlBtn.disabled = true;
+    fetch(url)
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+      })
+      .then(function (text) {
+        specInput.value = text;
+        setStatus("Fetched. Running audit…");
+        runAudit();
+      })
+      .catch(function () {
+        showError("Couldn't fetch this URL directly – this is almost always a CORS restriction on the server hosting the spec, not a problem with your URL. Copy the spec's raw JSON or YAML content and paste it into the text area instead.");
+        setStatus("");
+      })
+      .finally(function () {
+        fetchUrlBtn.disabled = false;
+      });
+  });
+
+  exampleSelect.addEventListener("change", function () {
+    var key = exampleSelect.value;
+    if (!key || !EXAMPLES[key]) return;
+    clearError();
+    setStatus("Fetching example spec…");
+    exampleSelect.disabled = true;
+    fetch(EXAMPLES[key])
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.text();
+      })
+      .then(function (text) {
+        specInput.value = text;
+        urlInput.value = "";
+        setStatus("Loaded. Running audit…");
+        runAudit();
+      })
+      .catch(function () {
+        showError("Couldn't fetch this example spec right now (the source may be temporarily unavailable). Try again in a moment, or paste a spec directly.");
+        setStatus("");
+      })
+      .finally(function () {
+        exampleSelect.disabled = false;
+        exampleSelect.value = "";
+      });
+  });
+})();
+</script>
+</body>
+</html>
