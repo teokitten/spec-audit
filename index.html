@@ -180,6 +180,63 @@
     color: var(--text-secondary);
   }
 
+  .config-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  .config-toggle-btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  .config-toggle-btn[aria-expanded="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .config-panel {
+    border-top: 1px solid var(--divider);
+    margin-top: 16px;
+    padding-top: 16px;
+  }
+  .config-panel[hidden] {
+    display: none;
+  }
+
+  .config-checkboxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 20px;
+  }
+
+  .config-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .config-checkbox input {
+    margin: 2px 0 0;
+    flex-shrink: 0;
+  }
+
+  .config-note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 14px 0 0;
+  }
+
+  @media (max-width: 520px) {
+    .config-checkboxes { grid-template-columns: 1fr; }
+  }
+
   .error-card {
     border: 1px solid var(--accent);
   }
@@ -191,6 +248,19 @@
   }
 
   /* Summary card */
+  .summary-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .summary-actions .btn-primary {
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+
   .summary-top {
     display: flex;
     align-items: flex-start;
@@ -677,7 +747,19 @@
       <textarea id="specInput" spellcheck="false"></textarea>
       <div class="paste-actions">
         <button id="runBtn" class="btn-primary" type="button">Run audit</button>
+        <button type="button" class="btn-secondary config-toggle-btn" id="configToggle" aria-expanded="false" aria-controls="configPanel" aria-label="Configure which checks run" title="Configure which checks run">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <circle cx="8" cy="8" r="2.1" fill="none" stroke="currentColor" stroke-width="1.3" />
+            <path d="M8 2.2v1.5M8 12.3v1.5M13.8 8h-1.5M3.7 8H2.2M11.9 4.1l-1.05 1.05M5.15 10.85L4.1 11.9M11.9 11.9l-1.05-1.05M5.15 5.15L4.1 4.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+          </svg>
+          Configure checks
+        </button>
         <span class="status-msg" id="statusMsg"></span>
+      </div>
+      <div class="config-panel" id="configPanel" hidden>
+        <div class="field-label">Checks to include</div>
+        <div class="config-checkboxes" id="configCheckboxes"></div>
+        <p class="config-note">Unresolvable references and parse errors always count toward the score – they're structural problems, not editorial checks.</p>
       </div>
     </div>
     <div class="input-row">
@@ -704,6 +786,10 @@
 
   <section id="reportSection" hidden>
     <section class="card summary-card">
+      <div class="summary-actions">
+        <button type="button" class="btn-primary" id="exportJsonBtn" disabled>Export JSON</button>
+        <button type="button" class="btn-primary" id="exportHtmlBtn" disabled>Export HTML report</button>
+      </div>
       <div class="summary-top">
         <div class="summary-group">
           <div class="stat">
@@ -754,7 +840,7 @@
           </li>
           <li>A missing description or undocumented error costs an endpoint twice as many points as a missing example, loose constraint, or ambiguous required field.</li>
         </ul>
-        <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Short but accurate descriptions (e.g. standard HTTP status text) may still be flagged for review.</p>
+        <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Short but accurate descriptions (e.g. standard HTTP status text) may still be flagged for review. Checks turned off in "Configure checks" are excluded from scoring entirely, not just hidden from the report.</p>
       </div>
 
       <div class="breakdown-section">
@@ -874,6 +960,12 @@
     "parse-error": "Endpoints that failed to parse"
   };
   var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "unresolvable", "parse-error"];
+
+  // Categories a user can turn off. "unresolvable" and "parse-error" are
+  // deliberately excluded – they flag structural problems (a broken $ref, an
+  // operation that couldn't be parsed at all), not editorial documentation
+  // gaps, so they always count regardless of configuration.
+  var CONFIGURABLE_CATEGORIES = ["description", "low-quality", "examples", "errors", "constraints", "required"];
 
   // ---------------------------------------------------------------------
   // Small utilities
@@ -1097,16 +1189,33 @@
   // ---------------------------------------------------------------------
   // Per-endpoint checks
   // ---------------------------------------------------------------------
-  function buildEndpoint(spec, pathKey, method, op, sharedParams) {
+  function buildEndpoint(spec, pathKey, method, op, sharedParams, enabledCategories) {
     var checks = [];
     var issues = [];
-    function addCheck(weight, passed) { checks.push({ weight: weight, passed: passed }); }
-    function addIssue(category, field, message) { issues.push({ category: category, field: field, message: message }); }
+    // A category is active if it's structural (always on) or the caller has
+    // it enabled. `enabledCategories` is a Set of configurable category keys;
+    // omitting it entirely (e.g. calling the engine without config support)
+    // is treated as "everything enabled", for backward compatibility.
+    function categoryEnabled(category) {
+      if (CONFIGURABLE_CATEGORIES.indexOf(category) === -1) return true;
+      return !enabledCategories || enabledCategories.has(category);
+    }
+    // Disabling a category removes both its weight and its issue, so the
+    // score is recalculated as if that check never ran at all – not just
+    // filtered out of the report afterward.
+    function addCheck(category, weight, passed) {
+      if (!categoryEnabled(category)) return;
+      checks.push({ weight: weight, passed: passed });
+    }
+    function addIssue(category, field, message) {
+      if (!categoryEnabled(category)) return;
+      issues.push({ category: category, field: field, message: message });
+    }
 
     var unresolved = [];
     var params = mergeParams(spec, sharedParams, op.parameters, unresolved);
     for (var u = 0; u < unresolved.length; u++) {
-      addCheck(WEIGHT_LOW, false);
+      addCheck("unresolvable", WEIGHT_LOW, false);
       addIssue("unresolvable", "parameter reference", "A parameter reference (\"" + unresolved[u] + "\") could not be resolved – check components/parameters for a missing or renamed entry. Tooling and readers relying on this reference will break.");
     }
 
@@ -1115,13 +1224,13 @@
     // 1. Operation description / summary
     var opDesc = op.description || op.summary;
     if (isMissing(opDesc)) {
-      addCheck(WEIGHT_HIGH, false);
+      addCheck("description", WEIGHT_HIGH, false);
       addIssue("description", label, "This endpoint has no summary or description – a developer scanning the spec has no way to tell what it does without reading the source code.");
     } else if (isUselessShort(opDesc)) {
-      addCheck(WEIGHT_HIGH, false);
+      addCheck("description", WEIGHT_HIGH, false);
       addIssue("description", label, "The description (\"" + opDesc + "\") is only " + opDesc.trim().length + " characters – too short to explain what the endpoint actually does.");
     } else {
-      addCheck(WEIGHT_HIGH, true);
+      addCheck("description", WEIGHT_HIGH, true);
     }
 
     // 2. Parameter descriptions (+ restates-name heuristic, + type constraints, + required ambiguity)
@@ -1130,13 +1239,13 @@
       var pLabel = "parameter `" + p.name + "` (" + p.in + ")";
 
       if (isMissing(p.description)) {
-        addCheck(WEIGHT_HIGH, false);
+        addCheck("description", WEIGHT_HIGH, false);
         addIssue("description", pLabel, "No description – a developer calling this endpoint has no explanation of what this parameter controls or what values it accepts.");
       } else if (isUselessShort(p.description)) {
-        addCheck(WEIGHT_HIGH, false);
+        addCheck("description", WEIGHT_HIGH, false);
         addIssue("description", pLabel, "The description (\"" + p.description + "\") is only " + p.description.trim().length + " characters – too short to be useful, likely just a placeholder.");
       } else {
-        addCheck(WEIGHT_HIGH, true);
+        addCheck("description", WEIGHT_HIGH, true);
         if (restatesName(p.name, p.description)) {
           addIssue("low-quality", pLabel, "The description (\"" + p.description + "\") just restates the parameter name in words – it adds no information a developer couldn't already guess from the name itself.");
         }
@@ -1144,20 +1253,20 @@
 
       var schema = p.schema ? deref(spec, p.schema) : null;
       if (schema && schema.__unresolvable) {
-        addCheck(WEIGHT_LOW, false);
+        addCheck("unresolvable", WEIGHT_LOW, false);
         addIssue("unresolvable", pLabel, "The parameter's schema reference (\"" + schema.ref + "\") could not be resolved, so its type and constraints can't be checked.");
         schema = null;
       }
       if (schema) {
         if (schema.type === "string" && isConstrainableName(p.name || "")) {
           var constrained = schema.enum || schema.format || schema.pattern || schema.minLength != null || schema.maxLength != null;
-          addCheck(WEIGHT_LOW, !!constrained);
+          addCheck("constraints", WEIGHT_LOW, !!constrained);
           if (!constrained) {
             addIssue("constraints", pLabel, "This is a free-form string with no enum, format, or length limit, even though the name suggests a fixed set of valid values – a developer will have to guess which strings are actually accepted, or trial-and-error against the API.");
           }
         } else if ((schema.type === "integer" || schema.type === "number") && !ID_LIKE_NAME.test(p.name || "")) {
           var bounded = schema.minimum != null || schema.maximum != null;
-          addCheck(WEIGHT_LOW, bounded);
+          addCheck("constraints", WEIGHT_LOW, bounded);
           if (!bounded) {
             addIssue("constraints", pLabel, "This numeric parameter has no minimum or maximum – a developer won't know the valid range without testing the API directly.");
           }
@@ -1166,7 +1275,7 @@
 
       if (p.in !== "path") {
         var hasRequired = typeof p.required === "boolean";
-        addCheck(WEIGHT_LOW, hasRequired);
+        addCheck("required", WEIGHT_LOW, hasRequired);
         if (!hasRequired) {
           addIssue("required", pLabel, "Whether this parameter is required isn't explicitly stated – a developer has to assume it's optional (the OpenAPI default), which may be wrong and cause failed requests.");
         }
@@ -1177,18 +1286,18 @@
     if (op.requestBody) {
       var rb = deref(spec, op.requestBody);
       if (rb.__unresolvable) {
-        addCheck(WEIGHT_LOW, false);
+        addCheck("unresolvable", WEIGHT_LOW, false);
         addIssue("unresolvable", "requestBody", "The requestBody reference (\"" + rb.ref + "\") could not be resolved – check components/requestBodies for a missing or renamed entry.");
       } else {
         var rbMedia = firstContent(rb.content);
         if (rbMedia) {
           var rbSchema = rbMedia.schema ? deref(spec, rbMedia.schema) : null;
           if (rbSchema && rbSchema.__unresolvable) {
-            addCheck(WEIGHT_LOW, false);
+            addCheck("unresolvable", WEIGHT_LOW, false);
             addIssue("unresolvable", "requestBody schema", "The request body schema reference (\"" + rbSchema.ref + "\") could not be resolved.");
           } else {
             var rbEx = hasExample(spec, rbMedia, rbSchema);
-            addCheck(WEIGHT_LOW, rbEx);
+            addCheck("examples", WEIGHT_LOW, rbEx);
             if (!rbEx) {
               addIssue("examples", "requestBody", "The request body has no example payload – a developer has to guess the shape of a valid request instead of copying a working sample.");
             }
@@ -1202,18 +1311,18 @@
     if (successEntry) {
       var sResp = deref(spec, successEntry[1]);
       if (sResp.__unresolvable) {
-        addCheck(WEIGHT_LOW, false);
+        addCheck("unresolvable", WEIGHT_LOW, false);
         addIssue("unresolvable", "response " + successEntry[0], "The " + successEntry[0] + " response reference (\"" + sResp.ref + "\") could not be resolved.");
       } else {
         var sMedia = firstContent(sResp.content);
         if (sMedia) {
           var sSchema = sMedia.schema ? deref(spec, sMedia.schema) : null;
           if (sSchema && sSchema.__unresolvable) {
-            addCheck(WEIGHT_LOW, false);
+            addCheck("unresolvable", WEIGHT_LOW, false);
             addIssue("unresolvable", "response " + successEntry[0] + " schema", "The " + successEntry[0] + " response schema reference (\"" + sSchema.ref + "\") could not be resolved.");
           } else {
             var sEx = hasExample(spec, sMedia, sSchema);
-            addCheck(WEIGHT_LOW, sEx);
+            addCheck("examples", WEIGHT_LOW, sEx);
             if (!sEx) {
               addIssue("examples", "response " + successEntry[0], "The " + successEntry[0] + " response has no example – a developer building against this endpoint can't see what a real response actually looks like.");
             }
@@ -1228,7 +1337,7 @@
     var errorEntries = responseEntries.filter(function (e) { return /^[45]\d\d$/.test(e[0]) || e[0] === "default"; });
 
     if (has2xx) {
-      addCheck(WEIGHT_HIGH, errorEntries.length > 0);
+      addCheck("errors", WEIGHT_HIGH, errorEntries.length > 0);
       if (errorEntries.length === 0) {
         addIssue("errors", label, "This endpoint documents success responses but no error responses at all – a developer has no idea what happens on bad input, missing auth, a not-found resource, or a server error, or how to handle any of it.");
       }
@@ -1239,7 +1348,7 @@
       var resp = deref(spec, errorEntries[ei][1]);
       var respLabel = "response " + code;
       if (resp.__unresolvable) {
-        addCheck(WEIGHT_HIGH, false);
+        addCheck("unresolvable", WEIGHT_HIGH, false);
         addIssue("unresolvable", respLabel, "The " + code + " response reference (\"" + resp.ref + "\") could not be resolved.");
         continue;
       }
@@ -1247,7 +1356,7 @@
       var eSchema = eMedia && eMedia.schema ? deref(spec, eMedia.schema) : null;
       var eSchemaOk = eSchema && !eSchema.__unresolvable;
       var descOk = !isMissing(resp.description) && !isUselessShort(resp.description);
-      addCheck(WEIGHT_HIGH, descOk);
+      addCheck("errors", WEIGHT_HIGH, descOk);
       if (!descOk) {
         var bodyNote = eSchemaOk ? "" : " and no schema describing the error body";
         addIssue("errors", respLabel, "This response has no meaningful description of when it occurs" + bodyNote + " – a developer can't tell what triggered it" + (eSchemaOk ? "" : " or how to parse the error body") + ".");
@@ -1261,7 +1370,7 @@
     return { path: pathKey, method: method.toUpperCase(), score: score, issues: issues };
   }
 
-  function extractEndpoints(spec) {
+  function extractEndpoints(spec, enabledCategories) {
     var endpoints = [];
     var paths = spec.paths || {};
     var pathKeys = Object.keys(paths);
@@ -1283,7 +1392,7 @@
         var op = pathItem[method];
         if (!op || typeof op !== "object") continue;
         try {
-          endpoints.push(buildEndpoint(spec, pathKey, method, op, sharedParams));
+          endpoints.push(buildEndpoint(spec, pathKey, method, op, sharedParams, enabledCategories));
         } catch (e) {
           endpoints.push({
             path: pathKey, method: method.toUpperCase(), score: 0,
@@ -1343,7 +1452,7 @@
   // show a status message between the parse and check stages on huge specs,
   // but a future CLI (or any other consumer) only needs this one function.
   // ---------------------------------------------------------------------
-  function auditSpec(specText) {
+  function auditSpec(specText, enabledCategories) {
     var parsed = parseSpecText(specText);
     if (parsed.error) {
       return { error: parsed.error, stage: "parse" };
@@ -1352,7 +1461,7 @@
     if (validationError) {
       return { error: validationError, stage: "validate" };
     }
-    var endpoints = extractEndpoints(parsed.spec);
+    var endpoints = extractEndpoints(parsed.spec, enabledCategories);
     if (endpoints.length === 0) {
       return {
         error: "No operations (GET, POST, PUT, PATCH, DELETE, etc.) were found under any path in this spec.",
@@ -1376,6 +1485,7 @@
     WEIGHT_LOW: WEIGHT_LOW,
     CATEGORY_LABELS: CATEGORY_LABELS,
     CATEGORY_ORDER: CATEGORY_ORDER,
+    CONFIGURABLE_CATEGORIES: CONFIGURABLE_CATEGORIES,
     parseSpecText: parseSpecText,
     validateSpec: validateSpec,
     extractEndpoints: extractEndpoints,
@@ -1430,6 +1540,9 @@
   var fetchUrlBtn = document.getElementById("fetchUrlBtn");
   var exampleSelect = document.getElementById("exampleSelect");
   var runBtn = document.getElementById("runBtn");
+  var configToggle = document.getElementById("configToggle");
+  var configPanel = document.getElementById("configPanel");
+  var configCheckboxes = document.getElementById("configCheckboxes");
   var statusMsg = document.getElementById("statusMsg");
   var errorCard = document.getElementById("errorCard");
   var errorText = document.getElementById("errorText");
@@ -1442,6 +1555,8 @@
   var breakdownEl = document.getElementById("breakdown");
   var methodologyToggle = document.getElementById("methodologyToggle");
   var methodologyPanel = document.getElementById("methodologyPanel");
+  var exportJsonBtn = document.getElementById("exportJsonBtn");
+  var exportHtmlBtn = document.getElementById("exportHtmlBtn");
 
   var searchInput = document.getElementById("searchInput");
   var gradeFilter = document.getElementById("gradeFilter");
@@ -1494,8 +1609,44 @@
     endpoints: [],
     view: [],
     categoryFilter: null,
-    page: 1
+    page: 1,
+    specSource: null,
+    // All 6 configurable categories start enabled; kept as JS state (not
+    // localStorage, which isn't available here) so it survives across
+    // multiple audit runs within the same page load.
+    enabledCategories: new Set(SpecAuditEngine.CONFIGURABLE_CATEGORIES)
   };
+
+  // ---------------------------------------------------------------------
+  // Check configuration panel
+  // ---------------------------------------------------------------------
+  configCheckboxes.innerHTML = SpecAuditEngine.CONFIGURABLE_CATEGORIES.map(function (category) {
+    var label = SpecAuditEngine.CATEGORY_LABELS[category] || category;
+    return '<label class="config-checkbox"><input type="checkbox" data-category="' + category + '" checked /> ' + label + '</label>';
+  }).join("");
+
+  configToggle.addEventListener("click", function () {
+    var expanded = configToggle.getAttribute("aria-expanded") === "true";
+    configToggle.setAttribute("aria-expanded", String(!expanded));
+    configPanel.hidden = expanded;
+  });
+
+  configCheckboxes.addEventListener("change", function (e) {
+    var checkbox = e.target.closest("input[data-category]");
+    if (!checkbox) return;
+    var category = checkbox.dataset.category;
+    if (checkbox.checked) {
+      state.enabledCategories.add(category);
+    } else {
+      state.enabledCategories.delete(category);
+    }
+    // Re-audit from scratch with the new config, but only if a report is
+    // already showing – toggling before the first run just saves the
+    // preference for when "Run audit" is clicked.
+    if (!reportSection.hidden) {
+      runAudit();
+    }
+  });
 
   // ---------------------------------------------------------------------
   // Small utilities
@@ -1872,7 +2023,7 @@
 
         setTimeout(function () {
           try {
-            var endpoints = SpecAuditEngine.extractEndpoints(parsed.spec);
+            var endpoints = SpecAuditEngine.extractEndpoints(parsed.spec, state.enabledCategories);
             if (endpoints.length === 0) {
               showError("No operations (GET, POST, PUT, PATCH, DELETE, etc.) were found under any path in this spec.");
               setStatus("");
@@ -1881,6 +2032,7 @@
             }
             state.endpoints = endpoints;
             state.categoryFilter = null;
+            state.specSource = state.specSource || "Pasted directly";
             renderSummary(endpoints);
             updateCategoryFilterIndicator();
             searchInput.value = "";
@@ -1888,6 +2040,8 @@
             sortSelect.value = "score-asc";
             applyFilters();
             reportSection.hidden = false;
+            exportJsonBtn.disabled = false;
+            exportHtmlBtn.disabled = false;
             setStatus("Audited " + endpoints.length + " endpoints.");
           } catch (e) {
             showError("Something went wrong while checking this spec: " + e.message);
@@ -1911,6 +2065,7 @@
   // "input", so this only reacts to actual typing/pasting.
   specInput.addEventListener("input", function () {
     exampleSelect.value = "";
+    state.specSource = null;
   });
 
   fetchUrlBtn.addEventListener("click", function () {
@@ -1927,6 +2082,7 @@
       .then(function (text) {
         specInput.value = text;
         exampleSelect.value = "";
+        state.specSource = url;
         setStatus("Fetched. Running audit…");
         runAudit();
       })
@@ -1942,6 +2098,7 @@
   exampleSelect.addEventListener("change", function () {
     var key = exampleSelect.value;
     if (!key || !SpecAuditEngine.EXAMPLES[key]) return;
+    var sourceLabel = exampleSelect.options[exampleSelect.selectedIndex].textContent;
     clearError();
     setStatus("Fetching example spec…");
     exampleSelect.disabled = true;
@@ -1953,6 +2110,7 @@
       .then(function (text) {
         specInput.value = text;
         urlInput.value = "";
+        state.specSource = sourceLabel;
         setStatus("Loaded. Running audit…");
         runAudit();
       })
@@ -1965,6 +2123,200 @@
         exampleSelect.disabled = false;
       });
   });
+
+  // ---------------------------------------------------------------------
+  // Export
+  // ---------------------------------------------------------------------
+  function isoDateStamp() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function downloadBlob(content, filename, mimeType) {
+    var blob = new Blob([content], { type: mimeType });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+  }
+
+  // Same ordering rules as applyFilters()'s view.sort, kept separate so the
+  // exported report can't be affected by future changes to live filtering.
+  function sortedEndpointsForExport() {
+    var sortKey = sortSelect.value;
+    return state.endpoints.slice().sort(function (a, b) {
+      switch (sortKey) {
+        case "score-desc": return b.score - a.score;
+        case "issues-desc": return b.issues.length - a.issues.length;
+        case "path-asc": return a.path.localeCompare(b.path) || a.method.localeCompare(b.method);
+        case "method-asc": return a.method.localeCompare(b.method) || a.path.localeCompare(b.path);
+        case "score-asc":
+        default: return a.score - b.score;
+      }
+    });
+  }
+
+  // Categories the user turned off for this audit run, so an exported report
+  // can say so explicitly instead of silently looking like a clean spec.
+  function disabledCategories() {
+    return SpecAuditEngine.CONFIGURABLE_CATEGORIES.filter(function (c) {
+      return !state.enabledCategories.has(c);
+    });
+  }
+
+  function exportJson() {
+    var summary = SpecAuditEngine.summarize(state.endpoints);
+    var disabled = disabledCategories();
+    var payload = {
+      overallScore: summary.overallScore,
+      overallGrade: summary.overallGrade,
+      totalIssues: summary.totalIssues,
+      categoryBreakdown: summary.categoryBreakdown,
+      disabledChecks: disabled.map(function (c) {
+        return { category: c, label: SpecAuditEngine.CATEGORY_LABELS[c] };
+      }),
+      endpoints: state.endpoints.map(function (e) {
+        return {
+          path: e.path,
+          method: e.method,
+          score: e.score,
+          issues: e.issues.map(function (i) {
+            return { category: i.category, field: i.field, message: i.message };
+          })
+        };
+      })
+    };
+    downloadBlob(JSON.stringify(payload, null, 2), "spec-audit-" + isoDateStamp() + ".json", "application/json");
+  }
+
+  function buildStandaloneReportHtml() {
+    var summary = SpecAuditEngine.summarize(state.endpoints);
+    var endpoints = sortedEndpointsForExport();
+    var sourceLabel = state.specSource || "Pasted directly";
+    var exportedAt = new Date().toString();
+    var disabled = disabledCategories();
+    var checksLine = disabled.length === 0
+      ? "All checks enabled"
+      : "Checks disabled for this report: " + disabled.map(function (c) { return SpecAuditEngine.CATEGORY_LABELS[c]; }).join(", ");
+
+    var breakdownHtml = summary.categoryBreakdown.length === 0
+      ? '<div class="breakdown-empty">No issues found – every check passed.</div>'
+      : (function () {
+          var max = summary.categoryBreakdown[0].count;
+          return summary.categoryBreakdown.map(function (r) {
+            var pct = Math.max(4, Math.round((r.count / max) * 100));
+            return '<div class="breakdown-row">' +
+              '<span class="breakdown-label">' + esc(r.label) + '</span>' +
+              '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:' + pct + '%"></span></span>' +
+              '<span class="breakdown-count">' + r.count + '</span>' +
+              '</div>';
+          }).join("");
+        })();
+
+    var rowsHtml = endpoints.map(function (e) {
+      var grade = SpecAuditEngine.gradeFor(e.score);
+      var issuesHtml = e.issues.length === 0
+        ? '<div class="no-issues">No issues found – every check passed.</div>'
+        : '<div class="issue-list">' + e.issues.map(function (i) {
+            return '<div class="issue"><span class="issue-field">' + esc(i.field) + '</span><span class="issue-msg">' + esc(i.message) + '</span></div>';
+          }).join("") + '</div>';
+      return '<div class="endpoint-block">' +
+        '<div class="endpoint-head">' +
+        '<span class="method-pill">' + esc(e.method) + '</span>' +
+        '<span class="endpoint-path">' + esc(e.path) + '</span>' +
+        '<span class="endpoint-score">' + e.score + '<span class="endpoint-den">/100</span></span>' +
+        '<span class="endpoint-grade">' + esc(grade) + '</span>' +
+        '<span class="endpoint-issue-count">' + e.issues.length + (e.issues.length === 1 ? " issue" : " issues") + '</span>' +
+        '</div>' +
+        issuesHtml +
+        '</div>';
+    }).join("");
+
+    return '<!doctype html>\n' +
+      '<html lang="en">\n' +
+      '<head>\n' +
+      '<meta charset="utf-8" />\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1" />\n' +
+      '<title>OpenAPI Spec Audit report – ' + esc(sourceLabel) + '</title>\n' +
+      '<style>\n' +
+      '  :root { --bg: #1C1917; --card: #292524; --divider: #3a3532; --accent: #F97316; --text: #FAFAF9; --text-secondary: #A8A29E; --text-muted: #78716C; }\n' +
+      '  * { box-sizing: border-box; }\n' +
+      '  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }\n' +
+      '  .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 96px; }\n' +
+      '  h1 { font-size: 26px; font-weight: 600; margin: 0 0 6px; }\n' +
+      '  .report-meta { font-size: 14px; color: var(--text-muted); margin: 0 0 32px; }\n' +
+      '  .report-meta strong { color: var(--text-secondary); font-weight: 500; }\n' +
+      '  .card { background: var(--card); border-radius: 10px; padding: 28px; margin-bottom: 24px; }\n' +
+      '  .summary-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 24px; margin-bottom: 26px; }\n' +
+      '  .summary-group { display: flex; gap: 32px; flex-wrap: wrap; }\n' +
+      '  .value-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }\n' +
+      '  .stat-value { font-size: 32px; font-weight: 600; }\n' +
+      '  .stat-den { font-size: 15px; color: var(--text-muted); margin-left: 2px; }\n' +
+      '  .field-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }\n' +
+      '  .breakdown-row { display: grid; grid-template-columns: 180px 1fr 32px; align-items: center; gap: 12px; padding: 7px 0; font-size: 13px; }\n' +
+      '  .breakdown-label { color: var(--text-secondary); }\n' +
+      '  .breakdown-bar-track { height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; }\n' +
+      '  .breakdown-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }\n' +
+      '  .breakdown-count { text-align: right; color: var(--text-muted); }\n' +
+      '  .breakdown-empty { font-size: 13px; color: var(--text-muted); }\n' +
+      '  .table-card { padding: 20px; }\n' +
+      '  .endpoint-block { border-bottom: 1px solid var(--divider); padding: 16px 0; }\n' +
+      '  .endpoint-block:last-child { border-bottom: none; }\n' +
+      '  .endpoint-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; }\n' +
+      '  .method-pill { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary); background: var(--bg); border-radius: 4px; padding: 3px 8px; }\n' +
+      '  .endpoint-path { flex: 1 1 260px; min-width: 0; overflow-wrap: break-word; color: var(--text); }\n' +
+      '  .endpoint-score { font-weight: 600; }\n' +
+      '  .endpoint-den { font-size: 12px; color: var(--text-muted); font-weight: 400; }\n' +
+      '  .endpoint-grade { font-weight: 600; color: var(--text-secondary); min-width: 1.5em; text-align: right; }\n' +
+      '  .endpoint-issue-count { font-size: 13px; color: var(--text-muted); min-width: 70px; text-align: right; }\n' +
+      '  .issue-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }\n' +
+      '  .issue { font-size: 13px; display: flex; gap: 10px; flex-wrap: wrap; }\n' +
+      '  .issue-field { color: var(--accent); font-weight: 600; flex-shrink: 0; }\n' +
+      '  .issue-msg { color: var(--text-secondary); }\n' +
+      '  .no-issues { margin-top: 10px; font-size: 13px; color: var(--text-muted); }\n' +
+      '  footer { margin-top: 32px; font-size: 12px; color: var(--text-muted); text-align: center; }\n' +
+      '</style>\n' +
+      '</head>\n' +
+      '<body>\n' +
+      '<div class="wrap">\n' +
+      '<header>\n' +
+      '<h1>OpenAPI Spec Audit report</h1>\n' +
+      '<p class="report-meta"><strong>Source:</strong> ' + esc(sourceLabel) + ' &nbsp;·&nbsp; <strong>Exported:</strong> ' + esc(exportedAt) + '</p>\n' +
+      '<p class="report-meta">' + esc(checksLine) + '</p>\n' +
+      '</header>\n' +
+      '<section class="card">\n' +
+      '<div class="summary-top">\n' +
+      '<div class="summary-group">\n' +
+      '<div class="stat"><span class="value-label">Grade</span><span class="stat-value">' + esc(summary.overallGrade) + '</span></div>\n' +
+      '<div class="stat"><span class="value-label">Overall score</span><span class="stat-value">' + summary.overallScore + '<span class="stat-den">/100</span></span></div>\n' +
+      '</div>\n' +
+      '<div class="summary-group">\n' +
+      '<div class="stat"><span class="value-label">endpoints audited</span><span class="stat-value">' + endpoints.length + '</span></div>\n' +
+      '<div class="stat"><span class="value-label">issues found</span><span class="stat-value">' + summary.totalIssues + '</span></div>\n' +
+      '</div>\n' +
+      '</div>\n' +
+      '<div class="field-label">Issues by category</div>\n' +
+      breakdownHtml +
+      '\n</section>\n' +
+      '<section class="card table-card">\n' +
+      '<div class="field-label">' + endpoints.length + ' endpoint' + (endpoints.length === 1 ? "" : "s") + '</div>\n' +
+      rowsHtml +
+      '\n</section>\n' +
+      '<footer>Generated by OpenAPI Spec Audit – read-only snapshot, not connected to the live tool.</footer>\n' +
+      '</div>\n' +
+      '</body>\n' +
+      '</html>\n';
+  }
+
+  function exportHtmlReport() {
+    downloadBlob(buildStandaloneReportHtml(), "spec-audit-report-" + isoDateStamp() + ".html", "text/html");
+  }
+
+  exportJsonBtn.addEventListener("click", exportJson);
+  exportHtmlBtn.addEventListener("click", exportHtmlReport);
 })();
 </script>
 </body>
