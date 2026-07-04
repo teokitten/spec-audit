@@ -15,8 +15,6 @@
     --text: #FAFAF9;
     --text-secondary: #A8A29E;
     --text-muted: #78716C;
-    --gray-mid: #78716C;
-    --gray-dark: #57534E;
   }
 
   * { box-sizing: border-box; }
@@ -43,14 +41,22 @@
     font-weight: 600;
     margin: 0 0 12px;
     letter-spacing: -0.02em;
+    color: var(--accent);
   }
 
   .tagline {
     font-size: 16px;
     line-height: 1.6;
     color: var(--text-secondary);
-    max-width: 640px;
     margin: 0;
+  }
+
+  .tagline-note {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 10px 0 0;
   }
 
   .card {
@@ -66,6 +72,12 @@
     color: var(--text-secondary);
     margin-bottom: 8px;
     font-weight: 500;
+  }
+
+  .section-intro {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 20px;
   }
 
   .input-row { margin-bottom: 18px; }
@@ -113,9 +125,15 @@
     font-family: system-ui, sans-serif;
   }
 
+  .example-row {
+    border-top: 1px solid var(--divider);
+    padding-top: 18px;
+  }
   .example-row select { width: 100%; }
 
   button {
+    -webkit-appearance: none;
+    appearance: none;
     font-family: system-ui, sans-serif;
     font-size: 14px;
     font-weight: 500;
@@ -132,6 +150,11 @@
     border: 1px solid var(--divider);
   }
   .btn-secondary:hover { border-color: var(--text-muted); }
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .btn-secondary:disabled:hover { border-color: var(--divider); }
 
   .btn-primary {
     background: var(--accent);
@@ -144,11 +167,12 @@
     cursor: default;
   }
 
-  .actions {
+  .paste-actions {
     display: flex;
     align-items: center;
     gap: 16px;
-    margin-top: 22px;
+    margin-top: 12px;
+    flex-wrap: wrap;
   }
 
   .status-msg {
@@ -169,89 +193,168 @@
   /* Summary card */
   .summary-top {
     display: flex;
+    align-items: flex-start;
     justify-content: space-between;
-    align-items: center;
     flex-wrap: wrap;
     gap: 24px;
     margin-bottom: 26px;
   }
 
-  .grade-block {
+  .summary-group {
     display: flex;
-    align-items: center;
-    gap: 18px;
+    align-items: flex-start;
+    gap: 40px;
   }
 
-  .grade-badge {
+  .info-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 40px;
-    height: 40px;
-    padding: 0 10px;
-    border-radius: 4px;
-    background: var(--accent);
-    color: var(--bg);
-    font-weight: 700;
-    font-size: 20px;
-  }
-
-  .score-block {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-  }
-
-  .score-num {
-    font-size: 32px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
-
-  .score-den {
-    font-size: 15px;
+    width: 20px;
+    height: 20px;
+    background: transparent;
+    border: none;
     color: var(--text-muted);
+    padding: 0;
+    line-height: 1;
   }
-
-  .summary-stats {
-    display: flex;
-    gap: 36px;
+  .info-btn svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+  }
+  .info-btn:hover {
+    color: var(--text-secondary);
+  }
+  .info-btn[aria-expanded="true"] {
+    color: var(--accent);
   }
 
   .stat {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
   }
 
-  .stat-num {
-    font-size: 22px;
-    font-weight: 600;
-  }
-
-  .stat-label {
+  .value-label {
     font-size: 12px;
     color: var(--text-muted);
+  }
+
+  .value-label-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .value-label-row .info-btn {
+    margin: -3px 0;
+  }
+
+  .stat-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--accent);
+  }
+
+  .stat-den {
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+
+  .methodology-panel {
+    border-top: 1px solid var(--divider);
+    margin-top: 22px;
+    padding-top: 22px;
+  }
+  .methodology-panel[hidden] {
+    display: none;
+  }
+
+  .methodology-panel ul {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .methodology-panel li {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+
+  .methodology-panel li ul {
+    margin-top: 6px;
+    gap: 4px;
+  }
+
+  .methodology-note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 14px 0 0;
+  }
+
+  .breakdown-section {
+    border-top: 1px solid var(--divider);
+    padding-top: 22px;
   }
 
   .breakdown {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-top: 1px solid var(--divider);
-    padding-top: 22px;
   }
 
   .breakdown-row {
     display: grid;
-    grid-template-columns: 220px 1fr 40px;
+    grid-template-columns: 240px 1fr 40px;
     align-items: center;
     gap: 14px;
+    padding: 4px 6px;
+    margin: 0 -6px;
+    border-radius: 6px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+
+  .breakdown-row:hover {
+    background: rgba(250, 250, 249, 0.03);
+  }
+
+  .breakdown-row.active {
+    background: rgba(249, 115, 22, 0.08);
+    border-left-color: var(--accent);
+  }
+
+  .breakdown-row.active .breakdown-label {
+    color: var(--text);
+  }
+
+  .breakdown-label-wrap {
+    min-width: 0;
+  }
+  .breakdown-label-wrap .cat-info-btn {
+    margin-left: 3px;
+    vertical-align: middle;
+  }
+
+  .breakdown-label-tail {
+    white-space: nowrap;
   }
 
   .breakdown-label {
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--accent);
   }
 
   .breakdown-bar-track {
@@ -262,6 +365,7 @@
   }
 
   .breakdown-bar-fill {
+    display: block;
     height: 100%;
     border-radius: 4px;
   }
@@ -277,8 +381,75 @@
     color: var(--text-muted);
   }
 
+  .cat-info-btn {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  .cat-info-btn svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  .breakdown-explain {
+    margin: -4px 0 4px;
+    padding: 0 0 0 6px;
+  }
+  .breakdown-explain[hidden] {
+    display: none;
+  }
+  .breakdown-explain p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+
+  .category-filter-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 0 8px 14px;
+  }
+  .category-filter-indicator[hidden] {
+    display: none;
+  }
+
+  .category-filter-indicator strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .category-filter-indicator button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--divider);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .category-filter-indicator button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
   /* Table card */
   .table-card { padding: 20px 20px 8px; }
+
+  .table-scroll {
+    width: 100%;
+    overflow-x: auto;
+  }
 
   .table-controls {
     display: flex;
@@ -300,6 +471,7 @@
 
   table {
     width: 100%;
+    min-width: 480px;
     border-collapse: collapse;
   }
 
@@ -364,6 +536,21 @@
 
   .path-text {
     color: var(--text);
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+
+  .copy-path-btn {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .copy-path-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+  .copy-path-btn.copied {
+    color: var(--accent);
   }
 
   tr.detail-row td {
@@ -409,13 +596,54 @@
     font-size: 14px;
   }
 
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 18px 8px 10px;
+  }
+  .pagination[hidden] {
+    display: none;
+  }
+
+  .pagination-indicator {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .pagination-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
+  .pagination-btn svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+  }
+
   footer {
     margin-top: 48px;
     font-size: 12px;
     color: var(--text-muted);
     text-align: center;
   }
-  footer a { color: var(--text-secondary); }
+  footer a {
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+  footer a:hover,
+  footer a:active {
+    color: var(--accent);
+  }
+
+  .footer-credit {
+    margin-top: 20px;
+  }
 
   @media (max-width: 640px) {
     .wrap { padding: 40px 16px 64px; }
@@ -431,35 +659,42 @@
   <header>
     <h1>OpenAPI Spec Audit</h1>
     <p class="tagline">
-      Paste an OpenAPI 3.0/3.1 spec and get a scored report of the documentation gaps a
-      technical writer would flag in review – missing descriptions, absent examples,
-      undocumented errors, and loose type constraints – the things an engineer skimming
-      the spec tends to miss. This does not render your spec as reference docs; Swagger
-      UI, Redoc, and Scalar already do that well.
+      Paste an OpenAPI 3.0/3.1 spec to get a scored report of its documentation gaps –
+      missing descriptions, absent examples, undocumented error responses, and loose
+      type constraints.
+    </p>
+    <p class="tagline-note">
+      This tool audits documentation quality, not schema correctness; it doesn't render
+      your spec as reference docs.
     </p>
   </header>
 
   <section class="card input-card" id="inputCard">
+    <p class="section-intro">Choose how to provide the spec:</p>
+
     <div class="input-row">
       <label class="field-label" for="specInput">Paste an OpenAPI spec (JSON or YAML)</label>
-      <textarea id="specInput" placeholder="Paste your OpenAPI 3.0/3.1 spec here…" spellcheck="false"></textarea>
+      <textarea id="specInput" spellcheck="false"></textarea>
+      <div class="paste-actions">
+        <button id="runBtn" class="btn-primary" type="button">Run audit</button>
+        <span class="status-msg" id="statusMsg"></span>
+      </div>
     </div>
-    <div class="input-row url-row">
-      <input type="text" id="urlInput" placeholder="…or fetch a spec from a URL" />
-      <button id="fetchUrlBtn" class="btn-secondary" type="button">Fetch</button>
+    <div class="input-row">
+      <label class="field-label" for="urlInput">Fetch from a URL</label>
+      <div class="url-row">
+        <input type="text" id="urlInput" placeholder="https://example.com/openapi.json" />
+        <button id="fetchUrlBtn" class="btn-primary" type="button">Fetch</button>
+      </div>
     </div>
     <div class="input-row example-row">
-      <label class="field-label" for="exampleSelect">Or load an example</label>
+      <label class="field-label" for="exampleSelect">Try auditing a sample spec</label>
       <select id="exampleSelect">
-        <option value="">Select an example spec…</option>
+        <option value="">Load sample…</option>
         <option value="petstore">Swagger Petstore – small, ~13 endpoints</option>
         <option value="github">GitHub REST API – large, 600+ endpoints</option>
         <option value="stripe">Stripe API – large, 500+ endpoints</option>
       </select>
-    </div>
-    <div class="actions">
-      <button id="runBtn" class="btn-primary" type="button">Run audit</button>
-      <span class="status-msg" id="statusMsg"></span>
     </div>
   </section>
 
@@ -470,63 +705,111 @@
   <section id="reportSection" hidden>
     <section class="card summary-card">
       <div class="summary-top">
-        <div class="grade-block">
-          <span class="grade-badge" id="gradeBadge">–</span>
-          <div class="score-block">
-            <span class="score-num" id="scoreNum">0</span>
-            <span class="score-den">/100</span>
+        <div class="summary-group">
+          <div class="stat">
+            <span class="value-label-row">
+              <span class="value-label">Grade</span>
+              <button type="button" class="info-btn" id="methodologyToggle" aria-expanded="false" aria-controls="methodologyPanel" aria-label="How the score and grade are calculated" title="How the score and grade are calculated">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+                  <circle cx="8" cy="5.1" r="0.9" fill="currentColor" />
+                  <line x1="8" y1="7.4" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+              </button>
+            </span>
+            <div class="stat-value-row">
+              <span class="stat-value" id="gradeBadge">–</span>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="value-label">Overall score</span>
+            <div class="stat-value-row">
+              <span class="stat-value" id="scoreNum">0</span>
+              <span class="stat-den">/100</span>
+            </div>
           </div>
         </div>
-        <div class="summary-stats">
+        <div class="summary-group">
           <div class="stat">
-            <span class="stat-num" id="endpointCount">0</span>
-            <span class="stat-label">endpoints audited</span>
+            <span class="value-label">endpoints audited</span>
+            <span class="stat-value" id="endpointCount">0</span>
           </div>
           <div class="stat">
-            <span class="stat-num" id="issueCount">0</span>
-            <span class="stat-label">issues found</span>
+            <span class="value-label">issues found</span>
+            <span class="stat-value" id="issueCount">0</span>
           </div>
         </div>
       </div>
-      <div class="breakdown" id="breakdown"></div>
+
+      <div class="methodology-panel" id="methodologyPanel" hidden>
+        <ul>
+          <li>Grade = average endpoint score:
+            <ul>
+              <li>A = 90–100</li>
+              <li>B = 75–89</li>
+              <li>C = 60–74</li>
+              <li>D = 40–59</li>
+              <li>F = 0–39</li>
+            </ul>
+          </li>
+          <li>A missing description or undocumented error costs an endpoint twice as many points as a missing example, loose constraint, or ambiguous required field.</li>
+        </ul>
+        <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Short but accurate descriptions (e.g. standard HTTP status text) may still be flagged for review.</p>
+      </div>
+
+      <div class="breakdown-section">
+        <div class="field-label">Issues by category</div>
+        <div class="breakdown" id="breakdown"></div>
+      </div>
     </section>
 
     <section class="card table-card">
-      <div class="table-controls">
+      <div class="category-filter-indicator" id="categoryFilterIndicator" hidden>
+        Filtered by: <strong id="categoryFilterLabel"></strong>
+        <button type="button" id="clearCategoryFilter" aria-label="Clear category filter">&times;</button>
+      </div>
+      <div class="table-controls" id="tableControls">
         <input type="text" id="searchInput" placeholder="Filter by path…" />
         <select id="gradeFilter">
-          <option value="0">All grades</option>
-          <option value="90">Below A</option>
-          <option value="75">Below B</option>
-          <option value="60">Below C</option>
-          <option value="40">Below D</option>
+          <option value="">All grades</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="D">D</option>
+          <option value="F">F</option>
         </select>
         <select id="sortSelect">
           <option value="score-asc">Lowest score first</option>
           <option value="score-desc">Highest score first</option>
           <option value="issues-desc">Most issues first</option>
-          <option value="path-asc">Path, A to Z</option>
+          <option value="path-asc">Path (a–z)</option>
+          <option value="method-asc">Method</option>
         </select>
         <span class="result-count" id="resultCount"></span>
       </div>
-      <table id="endpointTable">
-        <thead>
-          <tr>
-            <th class="col-method">Method</th>
-            <th class="col-path">Path</th>
-            <th class="col-score">Score</th>
-            <th class="col-grade">Grade</th>
-            <th class="col-issues">Issues</th>
-          </tr>
-        </thead>
-        <tbody id="endpointTbody"></tbody>
-      </table>
+      <div class="pagination" id="paginationTop" hidden></div>
+      <div class="table-scroll">
+        <table id="endpointTable">
+          <thead>
+            <tr>
+              <th class="col-method">Method</th>
+              <th class="col-path">Path</th>
+              <th class="col-score">Score</th>
+              <th class="col-grade">Grade</th>
+              <th class="col-issues">Issues</th>
+            </tr>
+          </thead>
+          <tbody id="endpointTbody"></tbody>
+        </table>
+      </div>
       <div class="empty-state" id="emptyState" hidden>No endpoints match the current filter.</div>
+      <div class="pagination" id="paginationBottom" hidden></div>
     </section>
   </section>
 
   <footer>
-    Runs entirely in your browser – nothing you paste is stored or transmitted by this tool.
+    <div>Runs entirely in your browser – nothing you paste is stored or transmitted by this tool.</div>
+    <div class="footer-credit">Built by <a href="https://teokitten.github.io" target="_blank" rel="noopener noreferrer">Teo Moldovanu</a></div>
   </footer>
 </div>
 
@@ -584,6 +867,34 @@
   };
   var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "unresolvable", "parse-error"];
 
+  // One-sentence explanation per category, condensed directly from the addIssue(...)
+  // messages produced in buildEndpoint() below – kept in sync with that wording
+  // rather than freshly authored, so the explanation never drifts from what the
+  // check actually flags. Shown in a click-to-expand panel below each breakdown row.
+  var CATEGORY_EXPLANATIONS = {
+    description: "An endpoint or parameter has no summary/description – a developer has no way to tell what it does or what values it accepts without reading the source.",
+    "low-quality": "The description just restates the parameter name in words, adding no information a developer couldn't already guess from the name itself.",
+    examples: "The request body or primary success response has no example payload, so a developer has to guess the shape of a valid request or response instead of copying a working sample.",
+    errors: "A 2xx-only endpoint has no error responses documented at all, or a documented error response has no meaningful description of when it occurs.",
+    constraints: "A string parameter whose name implies a fixed value set has no enum/format/length limit, or a numeric parameter has no minimum/maximum.",
+    required: "Whether a parameter is required isn't explicitly stated, so a developer has to assume it's optional, which may be wrong and cause failed requests."
+  };
+
+  var ICON_INFO_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/>' +
+    '<circle cx="8" cy="5.1" r="0.9" fill="currentColor"/>' +
+    '<line x1="8" y1="7.4" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>' +
+    '</svg>';
+
+  var ICON_COPY_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<rect x="5.5" y="5.5" width="8" height="8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
+    '<path d="M3.5 10.5v-7A1.3 1.3 0 0 1 4.8 2.2h7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' +
+    '</svg>';
+
+  var ICON_CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+
   // ---------------------------------------------------------------------
   // DOM references
   // ---------------------------------------------------------------------
@@ -602,6 +913,8 @@
   var endpointCountEl = document.getElementById("endpointCount");
   var issueCountEl = document.getElementById("issueCount");
   var breakdownEl = document.getElementById("breakdown");
+  var methodologyToggle = document.getElementById("methodologyToggle");
+  var methodologyPanel = document.getElementById("methodologyPanel");
 
   var searchInput = document.getElementById("searchInput");
   var gradeFilter = document.getElementById("gradeFilter");
@@ -609,10 +922,52 @@
   var resultCount = document.getElementById("resultCount");
   var endpointTbody = document.getElementById("endpointTbody");
   var emptyState = document.getElementById("emptyState");
+  var categoryFilterIndicator = document.getElementById("categoryFilterIndicator");
+  var categoryFilterLabel = document.getElementById("categoryFilterLabel");
+  var clearCategoryFilterBtn = document.getElementById("clearCategoryFilter");
+  var tableControls = document.getElementById("tableControls");
+
+  // Both the top and bottom pagination bars are generated from this one
+  // template and kept in sync by acting on the same state.page value – there
+  // is exactly one source of truth for pagination markup and logic, just two
+  // rendered instances of it.
+  var PAGINATION_HTML =
+    '<button type="button" class="btn-secondary pagination-btn pagination-first" aria-label="First page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M12.5 3.5L7.5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M8 3.5L3 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>' +
+    '<button type="button" class="btn-secondary pagination-btn pagination-prev" aria-label="Previous page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M10 3.5L5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>' +
+    '<span class="pagination-indicator">Page 1 of 1</span>' +
+    '<button type="button" class="btn-secondary pagination-btn pagination-next" aria-label="Next page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M6 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>' +
+    '<button type="button" class="btn-secondary pagination-btn pagination-last" aria-label="Last page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M3.5 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M8 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>';
+
+  var paginationContainers = [document.getElementById("paginationTop"), document.getElementById("paginationBottom")];
+  paginationContainers.forEach(function (el) { el.innerHTML = PAGINATION_HTML; });
+
+  var pageIndicators = document.querySelectorAll(".pagination-indicator");
+  var firstPageBtns = document.querySelectorAll(".pagination-first");
+  var prevPageBtns = document.querySelectorAll(".pagination-prev");
+  var nextPageBtns = document.querySelectorAll(".pagination-next");
+  var lastPageBtns = document.querySelectorAll(".pagination-last");
+
+  var PAGE_SIZE = 25;
 
   var state = {
     endpoints: [],
-    view: []
+    view: [],
+    categoryFilter: null,
+    page: 1
   };
 
   // ---------------------------------------------------------------------
@@ -622,6 +977,18 @@
     return String(s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
+  }
+
+  // Keeps a trailing icon glued to the last word of a label so it can never
+  // wrap onto its own line – the last word + icon are wrapped together in a
+  // white-space:nowrap span, so they move to the next line as one unit if
+  // they don't fit, but never split apart.
+  function buildLabelHtml(label, trailingHtml) {
+    if (!trailingHtml) return esc(label);
+    var words = label.split(" ");
+    var lastWord = words.pop();
+    var rest = words.join(" ");
+    return (rest ? esc(rest) + " " : "") + '<span class="breakdown-label-tail">' + esc(lastWord) + trailingHtml + "</span>";
   }
 
   function setStatus(msg) { statusMsg.textContent = msg || ""; }
@@ -661,7 +1028,28 @@
     return m === n || n.indexOf(m) !== -1 || m.indexOf(n) !== -1;
   }
 
-  var CONSTRAINABLE_NAME = /(status|type|state|category|kind|mode|visibility|sort|order|direction|role|level|priority|scope|method)s?$/i;
+  var CONSTRAINABLE_WORDS = ["status", "type", "state", "category", "kind", "mode", "visibility", "sort", "order", "direction", "role", "level", "priority", "scope", "method"];
+  var ID_LIKE_NAME = /(^id$|_id$|Id$)/i;
+
+  // Splits a parameter name into whole-word segments (on underscores/hyphens
+  // and camelCase boundaries) and checks whether the LAST segment exactly
+  // equals one of CONSTRAINABLE_WORDS, singular or plural. This matches
+  // "user_type" and "sortOrder" (last segment "type"/"order") but not
+  // "reorder" or "prototype" (single token, "order"/"type" only appear as a
+  // suffix within it, not as their own whole word) – the previous raw suffix
+  // regex matched both cases.
+  function isConstrainableName(name) {
+    if (!name) return false;
+    var segments = String(name)
+      .split(/[_\-\s]+/)
+      .reduce(function (acc, part) { return acc.concat(part.split(/(?=[A-Z])/)); }, [])
+      .map(function (s) { return s.toLowerCase(); })
+      .filter(Boolean);
+    if (segments.length === 0) return false;
+    var last = segments[segments.length - 1];
+    if (CONSTRAINABLE_WORDS.indexOf(last) !== -1) return true;
+    return last.charAt(last.length - 1) === "s" && CONSTRAINABLE_WORDS.indexOf(last.slice(0, -1)) !== -1;
+  }
 
   // ---------------------------------------------------------------------
   // $ref resolution. Follows chained refs (a ref pointing at another ref)
@@ -709,17 +1097,47 @@
     return content[preferred];
   }
 
-  function hasExample(mediaTypeObj, schema) {
-    if (mediaTypeObj && mediaTypeObj.example !== undefined) return true;
-    if (mediaTypeObj && mediaTypeObj.examples && Object.keys(mediaTypeObj.examples).length > 0) return true;
-    if (schema && schema.example !== undefined) return true;
-    if (schema && schema.properties && typeof schema.properties === "object") {
-      var props = schema.properties;
-      for (var key in props) {
-        if (props[key] && props[key].example !== undefined) return true;
+  var EXAMPLE_SEARCH_MAX_DEPTH = 3;
+
+  // Looks for an example anywhere within a schema: on the schema itself, on
+  // any of its properties (recursing one extra level so an example nested in
+  // a sub-object is still found), inside array items, or inside allOf/oneOf/
+  // anyOf branches. Each nested schema is deref'd first since real specs
+  // commonly reuse components via $ref at every one of these levels. Depth is
+  // capped (default 3) so a deeply/circularly nested schema can't cause
+  // runaway recursion.
+  function schemaHasExample(spec, schema, depth) {
+    if (!schema || depth <= 0) return false;
+    var resolved = deref(spec, schema);
+    if (!resolved || resolved.__unresolvable || typeof resolved !== "object") return false;
+
+    if (resolved.example !== undefined) return true;
+
+    if (resolved.properties && typeof resolved.properties === "object") {
+      for (var key in resolved.properties) {
+        var propSchema = deref(spec, resolved.properties[key]);
+        if (!propSchema || propSchema.__unresolvable) continue;
+        if (propSchema.example !== undefined) return true;
+        if (schemaHasExample(spec, propSchema, depth - 1)) return true;
       }
     }
+
+    if (resolved.type === "array" && resolved.items && schemaHasExample(spec, resolved.items, depth - 1)) {
+      return true;
+    }
+
+    var composed = [].concat(resolved.allOf || [], resolved.oneOf || [], resolved.anyOf || []);
+    for (var i = 0; i < composed.length; i++) {
+      if (schemaHasExample(spec, composed[i], depth - 1)) return true;
+    }
+
     return false;
+  }
+
+  function hasExample(spec, mediaTypeObj, schema) {
+    if (mediaTypeObj && mediaTypeObj.example !== undefined) return true;
+    if (mediaTypeObj && mediaTypeObj.examples && Object.keys(mediaTypeObj.examples).length > 0) return true;
+    return schemaHasExample(spec, schema, EXAMPLE_SEARCH_MAX_DEPTH);
   }
 
   // ---------------------------------------------------------------------
@@ -835,13 +1253,13 @@
         schema = null;
       }
       if (schema) {
-        if (schema.type === "string" && CONSTRAINABLE_NAME.test(p.name || "")) {
+        if (schema.type === "string" && isConstrainableName(p.name || "")) {
           var constrained = schema.enum || schema.format || schema.pattern || schema.minLength != null || schema.maxLength != null;
           addCheck(WEIGHT_LOW, !!constrained);
           if (!constrained) {
             addIssue("constraints", pLabel, "This is a free-form string with no enum, format, or length limit, even though the name suggests a fixed set of valid values – a developer will have to guess which strings are actually accepted, or trial-and-error against the API.");
           }
-        } else if (schema.type === "integer" || schema.type === "number") {
+        } else if ((schema.type === "integer" || schema.type === "number") && !ID_LIKE_NAME.test(p.name || "")) {
           var bounded = schema.minimum != null || schema.maximum != null;
           addCheck(WEIGHT_LOW, bounded);
           if (!bounded) {
@@ -873,7 +1291,7 @@
             addCheck(WEIGHT_LOW, false);
             addIssue("unresolvable", "requestBody schema", "The request body schema reference (\"" + rbSchema.ref + "\") could not be resolved.");
           } else {
-            var rbEx = hasExample(rbMedia, rbSchema);
+            var rbEx = hasExample(spec, rbMedia, rbSchema);
             addCheck(WEIGHT_LOW, rbEx);
             if (!rbEx) {
               addIssue("examples", "requestBody", "The request body has no example payload – a developer has to guess the shape of a valid request instead of copying a working sample.");
@@ -898,7 +1316,7 @@
             addCheck(WEIGHT_LOW, false);
             addIssue("unresolvable", "response " + successEntry[0] + " schema", "The " + successEntry[0] + " response schema reference (\"" + sSchema.ref + "\") could not be resolved.");
           } else {
-            var sEx = hasExample(sMedia, sSchema);
+            var sEx = hasExample(spec, sMedia, sSchema);
             addCheck(WEIGHT_LOW, sEx);
             if (!sEx) {
               addIssue("examples", "response " + successEntry[0], "The " + successEntry[0] + " response has no example – a developer building against this endpoint can't see what a real response actually looks like.");
@@ -1019,21 +1437,76 @@
     }
 
     var max = rows[0].count;
-    breakdownEl.innerHTML = rows.map(function (r, idx) {
+    breakdownEl.innerHTML = rows.map(function (r) {
       var pct = Math.max(4, Math.round((r.count / max) * 100));
-      var color = idx === 0 ? "var(--accent)" : (idx % 2 === 1 ? "var(--gray-mid)" : "var(--gray-dark)");
-      return '<div class="breakdown-row">' +
-        '<span class="breakdown-label">' + esc(CATEGORY_LABELS[r.category] || r.category) + '</span>' +
+      var color = "var(--accent)";
+      var explanation = CATEGORY_EXPLANATIONS[r.category];
+      var isActive = state.categoryFilter === r.category;
+      var explainId = "explain-" + esc(r.category);
+      var infoHtml = explanation
+        ? '<button type="button" class="info-btn cat-info-btn" data-category="' + esc(r.category) + '" aria-expanded="false" aria-controls="' + explainId + '" aria-label="What this checks">' + ICON_INFO_SVG + '</button>'
+        : '';
+      var row = '<div class="breakdown-row' + (isActive ? ' active' : '') + '" data-category="' + esc(r.category) + '">' +
+        '<span class="breakdown-label-wrap">' +
+        '<span class="breakdown-label">' + buildLabelHtml(CATEGORY_LABELS[r.category] || r.category, infoHtml) + '</span>' +
+        '</span>' +
         '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span>' +
         '<span class="breakdown-count">' + r.count + '</span>' +
         '</div>';
+      var explainPanel = explanation
+        ? '<div class="breakdown-explain" id="' + explainId + '" hidden><p>' + esc(explanation) + '</p></div>'
+        : '';
+      return row + explainPanel;
     }).join("");
+  }
+
+  function toggleBreakdownExplain(btn) {
+    var category = btn.dataset.category;
+    var panel = document.getElementById("explain-" + category);
+    if (!panel) return;
+    var isOpen = btn.getAttribute("aria-expanded") === "true";
+
+    // Only one explanation open at a time, matching the endpoint table's
+    // single-open-detail-row pattern for consistency.
+    breakdownEl.querySelectorAll('.cat-info-btn[aria-expanded="true"]').forEach(function (openBtn) {
+      if (openBtn !== btn) {
+        openBtn.setAttribute("aria-expanded", "false");
+        var openPanel = document.getElementById("explain-" + openBtn.dataset.category);
+        if (openPanel) openPanel.hidden = true;
+      }
+    });
+
+    btn.setAttribute("aria-expanded", String(!isOpen));
+    panel.hidden = isOpen;
+  }
+
+  function updateBreakdownActiveStates() {
+    var rows = breakdownEl.querySelectorAll(".breakdown-row");
+    rows.forEach(function (row) {
+      row.classList.toggle("active", !!state.categoryFilter && row.dataset.category === state.categoryFilter);
+    });
+  }
+
+  function updateCategoryFilterIndicator() {
+    if (state.categoryFilter) {
+      categoryFilterIndicator.hidden = false;
+      categoryFilterLabel.textContent = CATEGORY_LABELS[state.categoryFilter] || state.categoryFilter;
+    } else {
+      categoryFilterIndicator.hidden = true;
+    }
+  }
+
+  function setCategoryFilter(category) {
+    state.categoryFilter = state.categoryFilter === category ? null : category;
+    updateBreakdownActiveStates();
+    updateCategoryFilterIndicator();
+    applyFilters();
   }
 
   function currentFilters() {
     return {
       search: searchInput.value.trim().toLowerCase(),
-      threshold: parseInt(gradeFilter.value, 10) || 0,
+      grade: gradeFilter.value,
       sort: sortSelect.value
     };
   }
@@ -1042,7 +1515,8 @@
     var f = currentFilters();
     var view = state.endpoints.filter(function (e) {
       if (f.search && e.path.toLowerCase().indexOf(f.search) === -1) return false;
-      if (f.threshold && !(e.score < f.threshold)) return false;
+      if (f.grade && gradeFor(e.score) !== f.grade) return false;
+      if (state.categoryFilter && !e.issues.some(function (i) { return i.category === state.categoryFilter; })) return false;
       return true;
     });
 
@@ -1051,12 +1525,14 @@
         case "score-desc": return b.score - a.score;
         case "issues-desc": return b.issues.length - a.issues.length;
         case "path-asc": return a.path.localeCompare(b.path) || a.method.localeCompare(b.method);
+        case "method-asc": return a.method.localeCompare(b.method) || a.path.localeCompare(b.path);
         case "score-asc":
         default: return a.score - b.score;
       }
     });
 
     state.view = view;
+    state.page = 1;
     renderTable();
   }
 
@@ -1064,12 +1540,25 @@
     var view = state.view;
     resultCount.textContent = view.length + " of " + state.endpoints.length + " endpoints";
     emptyState.hidden = view.length !== 0;
+    paginationContainers.forEach(function (el) { el.hidden = view.length === 0; });
 
-    var html = view.map(function (e, i) {
+    var totalPages = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
+    if (state.page > totalPages) state.page = totalPages;
+    if (state.page < 1) state.page = 1;
+
+    var startIdx = (state.page - 1) * PAGE_SIZE;
+    var pageItems = view.slice(startIdx, startIdx + PAGE_SIZE);
+
+    var html = pageItems.map(function (e, i) {
+      var absoluteIdx = startIdx + i;
       var grade = gradeFor(e.score);
-      return '<tr class="endpoint-row" data-viewidx="' + i + '">' +
+      return '<tr class="endpoint-row" data-viewidx="' + absoluteIdx + '">' +
         '<td class="col-method"><span class="method-pill">' + esc(e.method) + '</span></td>' +
-        '<td class="col-path"><span class="path-cell"><span class="chevron">&#9656;</span><span class="path-text">' + esc(e.path) + '</span></span></td>' +
+        '<td class="col-path"><span class="path-cell">' +
+        '<span class="chevron">&#9656;</span>' +
+        '<span class="path-text">' + esc(e.path) + '</span>' +
+        '<button type="button" class="info-btn copy-path-btn" data-path="' + esc(e.path) + '" aria-label="Copy path">' + ICON_COPY_SVG + '</button>' +
+        '</span></td>' +
         '<td class="col-score">' + e.score + '</td>' +
         '<td class="col-grade">' + grade + '</td>' +
         '<td class="col-issues">' + e.issues.length + '</td>' +
@@ -1077,6 +1566,13 @@
     }).join("");
 
     endpointTbody.innerHTML = html;
+
+    var indicatorText = "Page " + state.page + " of " + totalPages;
+    pageIndicators.forEach(function (el) { el.textContent = indicatorText; });
+    firstPageBtns.forEach(function (el) { el.disabled = state.page <= 1; });
+    prevPageBtns.forEach(function (el) { el.disabled = state.page <= 1; });
+    nextPageBtns.forEach(function (el) { el.disabled = state.page >= totalPages; });
+    lastPageBtns.forEach(function (el) { el.disabled = state.page >= totalPages; });
   }
 
   function buildDetailRow(endpoint) {
@@ -1113,7 +1609,29 @@
     return tr;
   }
 
+  function copyPathToClipboard(btn) {
+    var path = btn.dataset.path;
+    if (!path || !navigator.clipboard || !navigator.clipboard.writeText) return;
+    navigator.clipboard.writeText(path).then(function () {
+      clearTimeout(btn._copyResetTimer);
+      btn.classList.add("copied");
+      btn.innerHTML = ICON_CHECK_SVG;
+      btn._copyResetTimer = setTimeout(function () {
+        btn.classList.remove("copied");
+        btn.innerHTML = ICON_COPY_SVG;
+      }, 1500);
+    }).catch(function () {
+      // Clipboard permission denied or unavailable – fail silently, no alert().
+    });
+  }
+
   endpointTbody.addEventListener("click", function (e) {
+    var copyBtn = e.target.closest(".copy-path-btn");
+    if (copyBtn) {
+      e.stopPropagation();
+      copyPathToClipboard(copyBtn);
+      return;
+    }
     var tr = e.target.closest("tr.endpoint-row");
     if (!tr) return;
     var idx = parseInt(tr.dataset.viewidx, 10);
@@ -1142,6 +1660,73 @@
   searchInput.addEventListener("input", applyFilters);
   gradeFilter.addEventListener("change", applyFilters);
   sortSelect.addEventListener("change", applyFilters);
+
+  methodologyToggle.addEventListener("click", function () {
+    var expanded = methodologyToggle.getAttribute("aria-expanded") === "true";
+    methodologyToggle.setAttribute("aria-expanded", String(!expanded));
+    methodologyPanel.hidden = expanded;
+  });
+
+  breakdownEl.addEventListener("click", function (e) {
+    var infoBtn = e.target.closest(".cat-info-btn");
+    if (infoBtn) {
+      e.stopPropagation();
+      toggleBreakdownExplain(infoBtn);
+      return;
+    }
+    var row = e.target.closest(".breakdown-row");
+    if (!row) return;
+    setCategoryFilter(row.dataset.category);
+  });
+
+  clearCategoryFilterBtn.addEventListener("click", function () {
+    state.categoryFilter = null;
+    updateBreakdownActiveStates();
+    updateCategoryFilterIndicator();
+    applyFilters();
+  });
+
+  function scrollToTableTop() {
+    tableControls.scrollIntoView({ block: "start" });
+  }
+
+  firstPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (state.page <= 1) return;
+      state.page = 1;
+      renderTable();
+      scrollToTableTop();
+    });
+  });
+
+  prevPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (state.page <= 1) return;
+      state.page -= 1;
+      renderTable();
+      scrollToTableTop();
+    });
+  });
+
+  nextPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var totalPages = Math.max(1, Math.ceil(state.view.length / PAGE_SIZE));
+      if (state.page >= totalPages) return;
+      state.page += 1;
+      renderTable();
+      scrollToTableTop();
+    });
+  });
+
+  lastPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var totalPages = Math.max(1, Math.ceil(state.view.length / PAGE_SIZE));
+      if (state.page >= totalPages) return;
+      state.page = totalPages;
+      renderTable();
+      scrollToTableTop();
+    });
+  });
 
   // ---------------------------------------------------------------------
   // Orchestration
@@ -1183,9 +1768,11 @@
               return;
             }
             state.endpoints = endpoints;
+            state.categoryFilter = null;
             renderSummary(endpoints);
+            updateCategoryFilterIndicator();
             searchInput.value = "";
-            gradeFilter.value = "0";
+            gradeFilter.value = "";
             sortSelect.value = "score-asc";
             applyFilters();
             reportSection.hidden = false;
@@ -1207,6 +1794,13 @@
 
   runBtn.addEventListener("click", runAudit);
 
+  // Only real user edits should clear the "loaded sample" indicator – setting
+  // .value programmatically (from the example/URL loaders below) doesn't fire
+  // "input", so this only reacts to actual typing/pasting.
+  specInput.addEventListener("input", function () {
+    exampleSelect.value = "";
+  });
+
   fetchUrlBtn.addEventListener("click", function () {
     var url = urlInput.value.trim();
     if (!url) return;
@@ -1220,6 +1814,7 @@
       })
       .then(function (text) {
         specInput.value = text;
+        exampleSelect.value = "";
         setStatus("Fetched. Running audit…");
         runAudit();
       })
@@ -1252,10 +1847,10 @@
       .catch(function () {
         showError("Couldn't fetch this example spec right now (the source may be temporarily unavailable). Try again in a moment, or paste a spec directly.");
         setStatus("");
+        exampleSelect.value = "";
       })
       .finally(function () {
         exampleSelect.disabled = false;
-        exampleSelect.value = "";
       });
   });
 })();
