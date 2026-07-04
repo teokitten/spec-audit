@@ -883,8 +883,10 @@
     <h1>OpenAPI Spec Audit</h1>
     <p class="tagline">
       Paste an OpenAPI 3.0/3.1 spec to get a scored report of its documentation gaps –
-      missing descriptions, absent examples, undocumented error responses, and loose
-      type constraints.
+      missing descriptions, absent examples, undocumented error responses, loose type
+      constraints, and semantic inconsistencies. Checks are configurable, reports are
+      exportable, and you can compare runs to track whether a spec is improving or
+      regressing.
     </p>
     <p class="tagline-note">
       This tool audits documentation quality, not schema correctness; it doesn't render
@@ -1118,6 +1120,15 @@
 // data in, data out, so this same code can later be lifted into a Node module
 // for a CLI with a copy-paste, not a rewrite. Exposed as window.SpecAuditEngine;
 // everything below this point down to "UI LAYER" is safe to extract verbatim.
+//
+// KEEP IN SYNC WITH cli/lib/engine.js: that file is this exact IIFE body,
+// extracted verbatim and wrapped in `module.exports` instead of a
+// `window.SpecAuditEngine` assignment. There is no build step or bundler
+// tying the two together – this file keeps its own inline copy so the
+// browser tool has zero dependencies and no build step. Any change to a
+// check, weight, category, or scoring rule made here must be hand-copied to
+// cli/lib/engine.js too, or the CLI and the browser tool will silently
+// disagree on how a spec is scored.
 // =============================================================================
 (function (global) {
   "use strict";
