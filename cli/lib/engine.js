@@ -95,6 +95,16 @@
   var SEMANTIC_SUBCHECK_DEFAULTS = {};
   SEMANTIC_SUBCHECKS.forEach(function (s) { SEMANTIC_SUBCHECK_DEFAULTS[s.key] = s.defaultEnabled; });
 
+  // Spec-wide checks are computed once across the whole document rather than
+  // per endpoint, so they're configured and reported separately from
+  // CONFIGURABLE_CATEGORIES/SEMANTIC_SUBCHECKS – see findTerminologyInconsistencies
+  // and auditSpec's `terminologyIssues` result field.
+  var SPEC_WIDE_CHECKS = [
+    { key: "spec-wide-terminology", label: "Inconsistent field descriptions", defaultEnabled: true }
+  ];
+  var SPEC_WIDE_CHECK_DEFAULTS = {};
+  SPEC_WIDE_CHECKS.forEach(function (s) { SPEC_WIDE_CHECK_DEFAULTS[s.key] = s.defaultEnabled; });
+
   // ---------------------------------------------------------------------
   // Small utilities
   // ---------------------------------------------------------------------
@@ -667,6 +677,207 @@
     return endpoints;
   }
 
+  // ---------------------------------------------------------------------
+  // Spec-wide check: terminology consistency. Unlike every check above,
+  // this isn't owned by any single endpoint – it compares descriptions for
+  // the same parameter/property name ACROSS the whole document, so it's
+  // computed once and reported separately (auditSpec's `terminologyIssues`),
+  // not folded into per-endpoint scoring.
+  // ---------------------------------------------------------------------
+  var TERMINOLOGY_SIMILARITY_THRESHOLD = 0.4;
+  var TERMINOLOGY_MAX_LOCATIONS_PER_DESCRIPTION = 5;
+
+  // Generic property names that are inherently reused across unrelated
+  // resources in any large spec (an "id", "name", "type", or "status" on one
+  // resource has nothing to do with the "id", "name", "type", or "status" on
+  // another) – never flag these regardless of similarity scores. Confirmed
+  // against the GitHub REST API spec: these are exactly the names with the
+  // most distinct descriptions (`name`: 80, `id`: 75, `state`: 50, etc.),
+  // which is a sign of "generic term used everywhere" rather than "one
+  // concept documented inconsistently". Extend this list if testing against
+  // another spec turns up the same pattern for a different generic name.
+  var GENERIC_PROPERTY_NAMES = [
+    "id", "name", "type", "url", "state", "description", "status", "value",
+    "key", "data", "message", "code", "title", "label", "kind", "mode"
+  ];
+
+  // Past this many distinct descriptions for the same name, the data shows
+  // it's almost always a generic/overloaded term (see GENERIC_PROPERTY_NAMES
+  // above) rather than genuine documentation drift for one concept – real
+  // drift (e.g. "per_page" describing different max values) clusters at 2-4
+  // distinct variants; 5+ is where generic-term reuse takes over. Skipping
+  // these avoids flagging names on combinatorics alone: with enough unrelated
+  // concepts sharing a name, SOME pair is guaranteed to score below the
+  // similarity threshold no matter what that threshold is.
+  var MAX_DISTINCT_DESCRIPTIONS_TO_FLAG = 4;
+
+  // Same "meaningful words only" reduction as restatesName above, just
+  // returned as a Set instead of a joined string, since this needs to
+  // compare two word sets against each other rather than a name.
+  function significantWordSet(desc) {
+    var words = String(desc).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+    var meaningful = words.filter(function (w) { return FILLER_WORDS.indexOf(w) === -1; });
+    return new Set(meaningful);
+  }
+
+  // Two descriptions with no significant words at all (e.g. both nothing but
+  // filler) aren't meaningfully comparable, so they're treated as identical
+  // rather than maximally different – avoids flagging near-empty text as an
+  // "inconsistency" purely because there's nothing left to compare.
+  function jaccardSimilarity(setA, setB) {
+    if (setA.size === 0 && setB.size === 0) return 1;
+    var intersection = 0;
+    setA.forEach(function (w) { if (setB.has(w)) intersection++; });
+    var unionSize = setA.size + setB.size - intersection;
+    return unionSize === 0 ? 1 : intersection / unionSize;
+  }
+
+  // Walks exactly the top-level properties of a schema (one level deep,
+  // same convention as schemaPropertyNames above) and records each
+  // property's name/description/location. Not recursive into nested
+  // sub-objects: this is a fuzzy cross-spec heuristic, not a full schema
+  // traversal, and unbounded recursion over a large spec's component
+  // library is a real performance risk for no real accuracy gain here.
+  function recordSchemaProperties(spec, schema, location, record) {
+    var resolved = schema ? deref(spec, schema) : null;
+    if (!resolved || resolved.__unresolvable || typeof resolved !== "object") return;
+    if (!resolved.properties || typeof resolved.properties !== "object") return;
+    Object.keys(resolved.properties).forEach(function (propName) {
+      var propSchema = deref(spec, resolved.properties[propName]);
+      if (!propSchema || propSchema.__unresolvable) return;
+      record(propName, propSchema.description, location + "." + propName);
+    });
+  }
+
+  function findTerminologyInconsistencies(spec) {
+    var occurrencesByKey = {};
+
+    function record(name, description, location) {
+      if (!name || isMissing(description)) return;
+      var key = String(name).trim().toLowerCase();
+      if (!key || GENERIC_PROPERTY_NAMES.indexOf(key) !== -1) return;
+      if (!occurrencesByKey[key]) occurrencesByKey[key] = { name: String(name).trim(), entries: [] };
+      occurrencesByKey[key].entries.push({ description: String(description).trim(), location: location });
+    }
+
+    var paths = spec.paths || {};
+    var pathKeys = Object.keys(paths);
+
+    // 1. Parameters across every path/operation.
+    pathKeys.forEach(function (pathKey) {
+      var pathItemRaw = paths[pathKey];
+      if (!pathItemRaw || typeof pathItemRaw !== "object") return;
+      var pathItem = deref(spec, pathItemRaw);
+      if (pathItem.__unresolvable) return;
+      var sharedParams = Array.isArray(pathItem.parameters) ? pathItem.parameters : [];
+      HTTP_METHODS.forEach(function (method) {
+        var op = pathItem[method];
+        if (!op || typeof op !== "object") return;
+        var label = method.toUpperCase() + " " + pathKey;
+        try {
+          var unresolved = [];
+          var params = mergeParams(spec, sharedParams, op.parameters, unresolved);
+          params.forEach(function (p) {
+            record(p.name, p.description, label + " — parameter");
+          });
+        } catch (e) {
+          // Skip this operation's parameters on any unexpected error – a
+          // spec-wide heuristic shouldn't abort the whole check over one
+          // malformed operation.
+        }
+      });
+    });
+
+    // 2. Named component schemas – the OpenAPI convention for shared models.
+    var componentSchemas = (spec.components && spec.components.schemas && typeof spec.components.schemas === "object")
+      ? spec.components.schemas : {};
+    Object.keys(componentSchemas).forEach(function (schemaName) {
+      recordSchemaProperties(spec, componentSchemas[schemaName], "schema " + schemaName, record);
+    });
+
+    // 3. Inline (non-$ref) request/response schemas – anything defined
+    // directly on an operation rather than via a shared component is NOT
+    // reachable from the components/schemas pass above, so it needs walking
+    // separately. A schema that's just a direct `{ "$ref": "..." }` is
+    // skipped here on purpose: it resolves to a schema already walked in
+    // step 2, and re-walking it per operation would both be redundant work
+    // and inflate occurrence counts without adding any new information.
+    pathKeys.forEach(function (pathKey) {
+      var pathItemRaw = paths[pathKey];
+      if (!pathItemRaw || typeof pathItemRaw !== "object") return;
+      var pathItem = deref(spec, pathItemRaw);
+      if (pathItem.__unresolvable) return;
+      HTTP_METHODS.forEach(function (method) {
+        var op = pathItem[method];
+        if (!op || typeof op !== "object") return;
+        var label = method.toUpperCase() + " " + pathKey;
+
+        if (op.requestBody && !op.requestBody.$ref) {
+          var rb = deref(spec, op.requestBody);
+          if (!rb.__unresolvable) {
+            var rbMedia = firstContent(rb.content);
+            if (rbMedia && rbMedia.schema && !rbMedia.schema.$ref) {
+              recordSchemaProperties(spec, rbMedia.schema, label + " requestBody", record);
+            }
+          }
+        }
+
+        var responseEntries = op.responses && typeof op.responses === "object" ? Object.entries(op.responses) : [];
+        responseEntries.forEach(function (entry) {
+          var code = entry[0];
+          if (entry[1] && entry[1].$ref) return;
+          var resp = deref(spec, entry[1]);
+          if (resp.__unresolvable) return;
+          var media = firstContent(resp.content);
+          if (media && media.schema && !media.schema.$ref) {
+            recordSchemaProperties(spec, media.schema, label + " response " + code, record);
+          }
+        });
+      });
+    });
+
+    // Group -> dedupe by normalized description -> flag if any pair of
+    // distinct descriptions falls below the similarity threshold.
+    var results = [];
+    Object.keys(occurrencesByKey).forEach(function (key) {
+      var group = occurrencesByKey[key];
+      if (group.entries.length < 2) return;
+
+      var byNormalizedDesc = {};
+      group.entries.forEach(function (e) {
+        var norm = e.description.toLowerCase().replace(/\s+/g, " ");
+        if (!byNormalizedDesc[norm]) byNormalizedDesc[norm] = { text: e.description, locations: [] };
+        byNormalizedDesc[norm].locations.push(e.location);
+      });
+      var distinctDescriptions = Object.keys(byNormalizedDesc).map(function (norm) { return byNormalizedDesc[norm]; });
+      if (distinctDescriptions.length < 2 || distinctDescriptions.length > MAX_DISTINCT_DESCRIPTIONS_TO_FLAG) return;
+
+      var wordSets = distinctDescriptions.map(function (d) { return significantWordSet(d.text); });
+      var minSimilarity = 1;
+      for (var i = 0; i < wordSets.length; i++) {
+        for (var j = i + 1; j < wordSets.length; j++) {
+          var sim = jaccardSimilarity(wordSets[i], wordSets[j]);
+          if (sim < minSimilarity) minSimilarity = sim;
+        }
+      }
+
+      if (minSimilarity < TERMINOLOGY_SIMILARITY_THRESHOLD) {
+        results.push({
+          name: group.name,
+          descriptions: distinctDescriptions.map(function (d) {
+            return {
+              text: d.text,
+              occurrenceCount: d.locations.length,
+              locations: d.locations.slice(0, TERMINOLOGY_MAX_LOCATIONS_PER_DESCRIPTION)
+            };
+          })
+        });
+      }
+    });
+
+    return results;
+  }
+
   function gradeFor(score) {
     if (score >= 90) return "A";
     if (score >= 75) return "B";
@@ -851,12 +1062,20 @@
       };
     }
     var summary = summarize(endpoints);
+    // Spec-wide, not owned by any endpoint – gated the same way the
+    // semantic sub-checks are: an explicit Set decides, an omitted Set
+    // falls back to this check's own default (on).
+    var terminologyEnabled = enabledCategories
+      ? enabledCategories.has("spec-wide-terminology")
+      : SPEC_WIDE_CHECK_DEFAULTS["spec-wide-terminology"];
+    var terminologyIssues = terminologyEnabled ? findTerminologyInconsistencies(parsed.spec) : [];
     return {
       endpoints: endpoints,
       overallScore: summary.overallScore,
       overallGrade: summary.overallGrade,
       totalIssues: summary.totalIssues,
-      categoryBreakdown: summary.categoryBreakdown
+      categoryBreakdown: summary.categoryBreakdown,
+      terminologyIssues: terminologyIssues
     };
   }
 
@@ -870,9 +1089,11 @@ module.exports = {
   CATEGORY_ORDER: CATEGORY_ORDER,
   CONFIGURABLE_CATEGORIES: CONFIGURABLE_CATEGORIES,
   SEMANTIC_SUBCHECKS: SEMANTIC_SUBCHECKS,
+  SPEC_WIDE_CHECKS: SPEC_WIDE_CHECKS,
   parseSpecText: parseSpecText,
   validateSpec: validateSpec,
   extractEndpoints: extractEndpoints,
+  findTerminologyInconsistencies: findTerminologyInconsistencies,
   gradeFor: gradeFor,
   summarize: summarize,
   validateExportedReport: validateExportedReport,
