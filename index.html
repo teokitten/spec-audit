@@ -235,6 +235,28 @@
     margin: 14px 0 0;
   }
 
+  .config-subgroup {
+    grid-column: 1 / -1;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .config-subgroup-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .config-subcheck {
+    padding-left: 2px;
+  }
+
   @media (max-width: 520px) {
     .config-checkboxes { grid-template-columns: 1fr; }
   }
@@ -971,7 +993,7 @@
           </li>
           <li>A missing description or undocumented error costs an endpoint twice as many points as a missing example, loose constraint, or ambiguous required field.</li>
         </ul>
-        <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Short but accurate descriptions (e.g. standard HTTP status text) may still be flagged for review. Checks turned off in "Configure checks" are excluded from scoring entirely, not just hidden from the report.</p>
+        <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Short but accurate descriptions (e.g. standard HTTP status text) may still be flagged for review. Checks turned off in "Configure checks" are excluded from scoring entirely, not just hidden from the report. Semantic checks are pattern-based heuristics (implied type, dangling field references, unmentioned enum values) with a higher false-positive rate than the structural checks above, which is why they can be turned off independently. Dangling-field-reference is off by default: on real-world specs that use backticks for enum values or scope names in prose (rather than to call out an actual field), it flags nearly everything it finds – enable it if it turns out useful on a given spec.</p>
       </div>
 
       <div class="breakdown-section">
@@ -1145,16 +1167,40 @@
     errors: "Undocumented error responses",
     constraints: "Missing type constraints",
     required: "Ambiguous required status",
+    semantic: "Semantic inconsistencies",
     unresolvable: "Unresolvable references",
     "parse-error": "Endpoints that failed to parse"
   };
-  var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "unresolvable", "parse-error"];
+  var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "semantic", "unresolvable", "parse-error"];
 
-  // Categories a user can turn off. "unresolvable" and "parse-error" are
-  // deliberately excluded – they flag structural problems (a broken $ref, an
-  // operation that couldn't be parsed at all), not editorial documentation
-  // gaps, so they always count regardless of configuration.
+  // Categories a user can turn off as a single unit. "unresolvable" and
+  // "parse-error" are deliberately excluded – they flag structural problems
+  // (a broken $ref, an operation that couldn't be parsed at all), not
+  // editorial documentation gaps, so they always count regardless of
+  // configuration. "semantic" is also excluded from this list: unlike the
+  // other categories, it doesn't have one on/off switch – see
+  // SEMANTIC_SUBCHECKS below.
   var CONFIGURABLE_CATEGORIES = ["description", "low-quality", "examples", "errors", "constraints", "required"];
+
+  // The "semantic" category bundles three independently-unreliable
+  // heuristics (see buildEndpoint), so instead of one toggle for the whole
+  // category, each sub-check gets its own – all three still tag their
+  // issues under the "semantic" category for reporting, so the breakdown
+  // always shows a single summed "Semantic inconsistencies" row regardless
+  // of which sub-checks are active. Dangling-field-reference defaults to
+  // off: testing against the GitHub REST API spec (1194 endpoints) found it
+  // flagged backtick-quoted enum values, OAuth scope names, and
+  // markdown-table field names from unrelated response objects as
+  // "dangling" almost every time – too high a false-positive rate to enable
+  // out of the box, even though it can be useful on specs that don't write
+  // descriptions that way.
+  var SEMANTIC_SUBCHECKS = [
+    { key: "semantic-type-mismatch", label: "Type-description mismatch", defaultEnabled: true },
+    { key: "semantic-enum-mismatch", label: "Enum-description mismatch", defaultEnabled: true },
+    { key: "semantic-dangling-reference", label: "Dangling field reference", defaultEnabled: false }
+  ];
+  var SEMANTIC_SUBCHECK_DEFAULTS = {};
+  SEMANTIC_SUBCHECKS.forEach(function (s) { SEMANTIC_SUBCHECK_DEFAULTS[s.key] = s.defaultEnabled; });
 
   // ---------------------------------------------------------------------
   // Small utilities
@@ -1205,6 +1251,58 @@
     var last = segments[segments.length - 1];
     if (CONSTRAINABLE_WORDS.indexOf(last) !== -1) return true;
     return last.charAt(last.length - 1) === "s" && CONSTRAINABLE_WORDS.indexOf(last.slice(0, -1)) !== -1;
+  }
+
+  // ---------------------------------------------------------------------
+  // Semantic heuristics: pattern-matches against description text, not real
+  // language understanding. These are intentionally narrow – a missed case
+  // is fine, a flood of false positives isn't – so err toward under-flagging
+  // the same way the low-quality-description heuristic does.
+  // ---------------------------------------------------------------------
+  function impliesBoolean(desc) {
+    return /true or false/i.test(desc) || /true\/false/i.test(desc) || /\btrue\b.*\bfalse\b/i.test(desc);
+  }
+
+  function impliesNumericRange(desc) {
+    return /\bbetween\s+\d+\s+and\s+\d+\b/i.test(desc) || /\brange of\b/i.test(desc);
+  }
+
+  var DANGLING_TOKEN_MIN_LENGTH = 3;
+  var DANGLING_TOKEN_EXCLUDED = ["true", "false", "null", "id", "get", "post", "put", "delete", "patch"];
+  var DANGLING_TOKEN_PATTERNS = [/`([a-zA-Z_][a-zA-Z0-9_]*)`/g, /'([a-zA-Z_][a-zA-Z0-9_]*)'/g];
+
+  // Pulls every backtick- or single-quote-wrapped token out of a description
+  // that looks like it's naming a field, and returns the ones that don't
+  // match any parameter or request/response schema property on this
+  // endpoint – a likely stale reference to a renamed or removed field.
+  function findDanglingReferences(text, knownNames) {
+    if (!text) return [];
+    var seen = new Set();
+    var results = [];
+    DANGLING_TOKEN_PATTERNS.forEach(function (re) {
+      var m;
+      while ((m = re.exec(text)) !== null) {
+        var token = m[1];
+        if (token.length < DANGLING_TOKEN_MIN_LENGTH) continue;
+        var lower = token.toLowerCase();
+        if (DANGLING_TOKEN_EXCLUDED.indexOf(lower) !== -1) continue;
+        if (knownNames.has(token) || seen.has(token)) continue;
+        seen.add(token);
+        results.push(token);
+      }
+    });
+    return results;
+  }
+
+  // Top-level property names of a (possibly $ref'd) schema, one level deep
+  // only – this is a fuzzy cross-reference check for the dangling-reference
+  // heuristic above, not a full schema traversal.
+  function schemaPropertyNames(spec, schemaRef) {
+    if (!schemaRef) return [];
+    var resolved = deref(spec, schemaRef);
+    if (!resolved || resolved.__unresolvable || typeof resolved !== "object") return [];
+    if (!resolved.properties || typeof resolved.properties !== "object") return [];
+    return Object.keys(resolved.properties);
   }
 
   // ---------------------------------------------------------------------
@@ -1389,6 +1487,15 @@
       if (CONFIGURABLE_CATEGORIES.indexOf(category) === -1) return true;
       return !enabledCategories || enabledCategories.has(category);
     }
+    // The three semantic checks are gated individually rather than through
+    // categoryEnabled/"semantic" (which isn't in CONFIGURABLE_CATEGORIES
+    // any more) – each has its own default, so omitting `enabledCategories`
+    // entirely falls back to that check's own default rather than a blanket
+    // "everything on".
+    function subCheckEnabled(key) {
+      if (!enabledCategories) return SEMANTIC_SUBCHECK_DEFAULTS[key];
+      return enabledCategories.has(key);
+    }
     // Disabling a category removes both its weight and its issue, so the
     // score is recalculated as if that check never ran at all – not just
     // filtered out of the report afterward.
@@ -1410,6 +1517,35 @@
 
     var label = method.toUpperCase() + " " + pathKey;
 
+    // Field names a description might legitimately reference, for the
+    // dangling-field-reference check below: every parameter name on this
+    // endpoint, plus request body / primary success response schema
+    // properties. Resolved independently and read-only here – the request
+    // body and response are resolved again in section 3 below, where their
+    // own unresolvable/example checks live; that's a separate concern from
+    // just gathering names.
+    var knownFieldNames = new Set(params.map(function (pp) { return pp.name; }).filter(Boolean));
+    if (op.requestBody) {
+      var rbForNames = deref(spec, op.requestBody);
+      if (!rbForNames.__unresolvable) {
+        var rbMediaForNames = firstContent(rbForNames.content);
+        if (rbMediaForNames && rbMediaForNames.schema) {
+          schemaPropertyNames(spec, rbMediaForNames.schema).forEach(function (n) { knownFieldNames.add(n); });
+        }
+      }
+    }
+    var responseEntriesForNames = op.responses && typeof op.responses === "object" ? Object.entries(op.responses) : [];
+    var successEntryForNames = responseEntriesForNames.filter(function (e) { return /^2\d\d$/.test(e[0]); })[0];
+    if (successEntryForNames) {
+      var sRespForNames = deref(spec, successEntryForNames[1]);
+      if (!sRespForNames.__unresolvable) {
+        var sMediaForNames = firstContent(sRespForNames.content);
+        if (sMediaForNames && sMediaForNames.schema) {
+          schemaPropertyNames(spec, sMediaForNames.schema).forEach(function (n) { knownFieldNames.add(n); });
+        }
+      }
+    }
+
     // 1. Operation description / summary
     var opDesc = op.description || op.summary;
     if (isMissing(opDesc)) {
@@ -1420,6 +1556,13 @@
       addIssue("description", label, "The description (\"" + opDesc + "\") is only " + opDesc.trim().length + " characters – too short to explain what the endpoint actually does.");
     } else {
       addCheck("description", WEIGHT_HIGH, true);
+    }
+
+    if (subCheckEnabled("semantic-dangling-reference")) {
+      findDanglingReferences(opDesc, knownFieldNames).forEach(function (token) {
+        addCheck("semantic", WEIGHT_LOW, false);
+        addIssue("semantic", label, "The description references `" + token + "` but no parameter or schema property with that name exists on this endpoint – this may be a stale reference to a renamed or removed field.");
+      });
     }
 
     // 2. Parameter descriptions (+ restates-name heuristic, + type constraints, + required ambiguity)
@@ -1460,6 +1603,44 @@
             addIssue("constraints", pLabel, "This numeric parameter has no minimum or maximum – a developer won't know the valid range without testing the API directly.");
           }
         }
+
+        // These two are detectors, not binary pass/fail states like the
+        // constraints checks above: most parameters simply aren't candidates
+        // (wrong type, no enum), so – like the unresolved-reference and
+        // dangling-reference checks – a weighted check is only added when a
+        // problem is actually found. Adding a "passing" check for every
+        // string/boolean parameter regardless of relevance would dilute the
+        // score with weight that was never really at risk.
+        if (!isMissing(p.description)) {
+          if (subCheckEnabled("semantic-type-mismatch")) {
+            var impliedType = null;
+            if (schema.type === "string" && impliesBoolean(p.description)) {
+              impliedType = "boolean";
+            } else if (schema.type === "boolean" && impliesNumericRange(p.description)) {
+              impliedType = "a numeric range";
+            }
+            if (impliedType) {
+              addCheck("semantic", WEIGHT_LOW, false);
+              addIssue("semantic", pLabel, "The description implies a " + impliedType + " but this parameter is typed as " + schema.type + " – this may confuse a developer about what values are actually valid, or indicates the schema and description have drifted out of sync.");
+            }
+          }
+
+          if (subCheckEnabled("semantic-enum-mismatch") && Array.isArray(schema.enum) && schema.enum.length >= 2) {
+            var descLower = p.description.toLowerCase();
+            var mentionsEnum = schema.enum.some(function (v) { return descLower.indexOf(String(v).toLowerCase()) !== -1; });
+            if (!mentionsEnum) {
+              addCheck("semantic", WEIGHT_LOW, false);
+              addIssue("semantic", pLabel, "This parameter has a fixed set of valid values (`" + schema.enum.join(", ") + "`) but the description doesn't mention any of them – a developer reading only the description won't know what to actually pass.");
+            }
+          }
+        }
+      }
+
+      if (subCheckEnabled("semantic-dangling-reference")) {
+        findDanglingReferences(p.description, knownFieldNames).forEach(function (token) {
+          addCheck("semantic", WEIGHT_LOW, false);
+          addIssue("semantic", pLabel, "The description references `" + token + "` but no parameter or schema property with that name exists on this endpoint – this may be a stale reference to a renamed or removed field.");
+        });
       }
 
       if (p.in !== "path") {
@@ -1726,8 +1907,13 @@
         return { category: c, label: CATEGORY_LABELS[c] || c, previousCount: previousCount, currentCount: currentCount, delta: currentCount - previousCount };
       });
 
-    var prevDisabled = (previous.disabledChecks || []).map(function (d) { return d.category; }).sort();
-    var currDisabled = (current.disabledChecks || []).map(function (d) { return d.category; }).sort();
+    // Compared by the specific check key, not just category: two reports can
+    // both have a disabled entry tagged "semantic" while disagreeing on
+    // *which* semantic sub-check that was, which is still a real config
+    // difference. `d.key` falls back to `d.category` for reports exported
+    // before per-check keys existed.
+    var prevDisabled = (previous.disabledChecks || []).map(function (d) { return d.key || d.category; }).sort();
+    var currDisabled = (current.disabledChecks || []).map(function (d) { return d.key || d.category; }).sort();
     var configDiffers = JSON.stringify(prevDisabled) !== JSON.stringify(currDisabled);
 
     return {
@@ -1789,6 +1975,7 @@
     CATEGORY_LABELS: CATEGORY_LABELS,
     CATEGORY_ORDER: CATEGORY_ORDER,
     CONFIGURABLE_CATEGORIES: CONFIGURABLE_CATEGORIES,
+    SEMANTIC_SUBCHECKS: SEMANTIC_SUBCHECKS,
     parseSpecText: parseSpecText,
     validateSpec: validateSpec,
     extractEndpoints: extractEndpoints,
@@ -1819,7 +2006,8 @@
     examples: "The request body or primary success response has no example payload, so a developer has to guess the shape of a valid request or response instead of copying a working sample.",
     errors: "A 2xx-only endpoint has no error responses documented at all, or a documented error response has no meaningful description of when it occurs.",
     constraints: "A string parameter whose name implies a fixed value set has no enum/format/length limit, or a numeric parameter has no minimum/maximum.",
-    required: "Whether a parameter is required isn't explicitly stated, so a developer has to assume it's optional, which may be wrong and cause failed requests."
+    required: "Whether a parameter is required isn't explicitly stated, so a developer has to assume it's optional, which may be wrong and cause failed requests.",
+    semantic: "A description implies a different type than the schema declares, references a field name that doesn't exist on this endpoint, or doesn't mention any of the parameter's fixed enum values."
   };
 
   var ICON_INFO_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
@@ -1947,10 +2135,17 @@
     categoryFilter: null,
     page: 1,
     specSource: null,
-    // All 6 configurable categories start enabled; kept as JS state (not
+    // All 6 single-toggle categories start enabled, plus whichever semantic
+    // sub-checks default to enabled (type/enum mismatch, not
+    // dangling-reference – see SEMANTIC_SUBCHECKS). Kept as JS state (not
     // localStorage, which isn't available here) so it survives across
     // multiple audit runs within the same page load.
-    enabledCategories: new Set(SpecAuditEngine.CONFIGURABLE_CATEGORIES)
+    enabledCategories: new Set(
+      SpecAuditEngine.CONFIGURABLE_CATEGORIES.concat(
+        SpecAuditEngine.SEMANTIC_SUBCHECKS.filter(function (s) { return s.defaultEnabled; })
+          .map(function (s) { return s.key; })
+      )
+    )
   };
 
   var diffState = {
@@ -1964,10 +2159,23 @@
   // ---------------------------------------------------------------------
   // Check configuration panel
   // ---------------------------------------------------------------------
-  configCheckboxes.innerHTML = SpecAuditEngine.CONFIGURABLE_CATEGORIES.map(function (category) {
+  // The 6 regular categories are each one checkbox; "semantic" instead gets
+  // a labeled sub-group of 3 independent checkboxes (see SEMANTIC_SUBCHECKS)
+  // so its differing reliability/defaults are visible, not folded into a
+  // single misleading toggle.
+  var regularCheckboxesHtml = SpecAuditEngine.CONFIGURABLE_CATEGORIES.map(function (category) {
     var label = SpecAuditEngine.CATEGORY_LABELS[category] || category;
     return '<label class="config-checkbox"><input type="checkbox" data-category="' + category + '" checked /> ' + label + '</label>';
   }).join("");
+
+  var semanticSubgroupHtml = '<div class="config-subgroup">' +
+    '<div class="config-subgroup-label">' + esc(SpecAuditEngine.CATEGORY_LABELS.semantic) + '</div>' +
+    SpecAuditEngine.SEMANTIC_SUBCHECKS.map(function (s) {
+      return '<label class="config-checkbox config-subcheck"><input type="checkbox" data-category="' + s.key + '"' + (s.defaultEnabled ? " checked" : "") + ' /> ' + esc(s.label) + '</label>';
+    }).join("") +
+    '</div>';
+
+  configCheckboxes.innerHTML = regularCheckboxesHtml + semanticSubgroupHtml;
 
   configToggle.addEventListener("click", function () {
     var expanded = configToggle.getAttribute("aria-expanded") === "true";
@@ -2504,12 +2712,23 @@
     });
   }
 
-  // Categories the user turned off for this audit run, so an exported report
+  // Checks the user turned off for this audit run, so an exported report
   // can say so explicitly instead of silently looking like a clean spec.
-  function disabledCategories() {
-    return SpecAuditEngine.CONFIGURABLE_CATEGORIES.filter(function (c) {
+  // Each entry has a `key` (the specific toggle – a plain category for the 6
+  // single-toggle categories, or a "semantic-*" sub-check key), a `category`
+  // (which breakdown bucket it reports under), and a display `label`.
+  function computeDisabledChecks() {
+    var result = SpecAuditEngine.CONFIGURABLE_CATEGORIES.filter(function (c) {
       return !state.enabledCategories.has(c);
+    }).map(function (c) {
+      return { key: c, category: c, label: SpecAuditEngine.CATEGORY_LABELS[c] };
     });
+    SpecAuditEngine.SEMANTIC_SUBCHECKS.forEach(function (s) {
+      if (!state.enabledCategories.has(s.key)) {
+        result.push({ key: s.key, category: "semantic", label: s.label });
+      }
+    });
+    return result;
   }
 
   // Same shape produced for the JSON export and consumed by the diff/trend
@@ -2518,15 +2737,12 @@
   // for what a report object looks like.
   function buildReportPayload() {
     var summary = SpecAuditEngine.summarize(state.endpoints);
-    var disabled = disabledCategories();
     return {
       overallScore: summary.overallScore,
       overallGrade: summary.overallGrade,
       totalIssues: summary.totalIssues,
       categoryBreakdown: summary.categoryBreakdown,
-      disabledChecks: disabled.map(function (c) {
-        return { category: c, label: SpecAuditEngine.CATEGORY_LABELS[c] };
-      }),
+      disabledChecks: computeDisabledChecks(),
       endpoints: state.endpoints.map(function (e) {
         return {
           path: e.path,
@@ -2550,10 +2766,10 @@
     var endpoints = sortedEndpointsForExport();
     var sourceLabel = state.specSource || "Pasted directly";
     var exportedAt = new Date().toString();
-    var disabled = disabledCategories();
+    var disabled = computeDisabledChecks();
     var checksLine = disabled.length === 0
       ? "All checks enabled"
-      : "Checks disabled for this report: " + disabled.map(function (c) { return SpecAuditEngine.CATEGORY_LABELS[c]; }).join(", ");
+      : "Checks disabled for this report: " + disabled.map(function (c) { return c.label; }).join(", ");
 
     var breakdownHtml = summary.categoryBreakdown.length === 0
       ? '<div class="breakdown-empty">No issues found – every check passed.</div>'
