@@ -37,6 +37,24 @@ correctness.
 - Upload a previous JSON export to compare against the current run – see score
   deltas, category changes, and which specific endpoints improved or regressed
 
+## Limitations
+
+- The under-10-character "likely useless" description heuristic can flag short
+  but accurate text (e.g. standard HTTP status descriptions like "Not Found")
+  alongside genuine placeholder content.
+- The dangling-field-reference semantic check has a high false-positive rate on
+  specs that use backticks for enum value lists or OAuth scope names in prose –
+  off by default for this reason, can be enabled via config or
+  `--enable=semantic-dangling-reference` in the CLI.
+- The terminology-consistency check can still flag generic property names that
+  happen to have few description variants but represent genuinely different
+  concepts sharing a name, despite the stoplist and distinct-description cap in
+  place to filter out the most common cases.
+- All checks are heuristics based on pattern-matching against spec structure and
+  text, not true semantic understanding – they're designed to under-flag rather
+  than over-flag, but no heuristic is perfect, and results should inform a human
+  review, not replace one.
+
 ## Running locally
 
 Single HTML file, no build step, no dependencies except js-yaml (loaded from CDN

@@ -590,6 +590,10 @@
     margin: 14px 0 0;
   }
 
+  .methodology-limitations {
+    margin-top: 16px;
+  }
+
   .breakdown-section {
     border-top: 1px solid var(--divider);
     padding-top: 22px;
@@ -1062,7 +1066,16 @@
           </li>
           <li>A missing description or undocumented error costs an endpoint twice as many points as a missing example, loose constraint, or ambiguous required field.</li>
         </ul>
-        <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Short but accurate descriptions (e.g. standard HTTP status text) may still be flagged for review. Checks turned off in "Configure checks" are excluded from scoring entirely, not just hidden from the report. Semantic checks are pattern-based heuristics (implied type, dangling field references, unmentioned enum values) with a higher false-positive rate than the structural checks above, which is why they can be turned off independently. Dangling-field-reference is off by default: on real-world specs that use backticks for enum values or scope names in prose (rather than to call out an actual field), it flags nearly everything it finds – enable it if it turns out useful on a given spec.</p>
+        <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Checks turned off in "Configure checks" are excluded from scoring entirely, not just hidden from the report.</p>
+        <div class="methodology-limitations">
+          <div class="field-label">Known limitations</div>
+          <ul>
+            <li>Short (&lt;10 char) descriptions can be flagged even when accurate, e.g. "Not Found".</li>
+            <li>Dangling-field-reference: high false-positive rate on specs using backticks for enum values/scopes – off by default; enable via config or `--enable=semantic-dangling-reference`.</li>
+            <li>Terminology consistency can still flag generic names with few variants that are genuinely different concepts.</li>
+            <li>All checks are pattern-based heuristics, not true understanding – built to under-flag; treat results as input to review, not a replacement for it.</li>
+          </ul>
+        </div>
       </div>
 
       <div class="breakdown-section">
