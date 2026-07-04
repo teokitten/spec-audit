@@ -814,7 +814,15 @@
 </div>
 
 <script>
-(function () {
+// =============================================================================
+// AUDIT ENGINE
+// Pure spec-parsing, $ref-resolution, and check/scoring logic. No `document`,
+// no `window` access other than exposing itself on it, no UI side effects –
+// data in, data out, so this same code can later be lifted into a Node module
+// for a CLI with a copy-paste, not a rewrite. Exposed as window.SpecAuditEngine;
+// everything below this point down to "UI LAYER" is safe to extract verbatim.
+// =============================================================================
+(function (global) {
   "use strict";
 
   // ---------------------------------------------------------------------
@@ -867,142 +875,9 @@
   };
   var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "unresolvable", "parse-error"];
 
-  // One-sentence explanation per category, condensed directly from the addIssue(...)
-  // messages produced in buildEndpoint() below – kept in sync with that wording
-  // rather than freshly authored, so the explanation never drifts from what the
-  // check actually flags. Shown in a click-to-expand panel below each breakdown row.
-  var CATEGORY_EXPLANATIONS = {
-    description: "An endpoint or parameter has no summary/description – a developer has no way to tell what it does or what values it accepts without reading the source.",
-    "low-quality": "The description just restates the parameter name in words, adding no information a developer couldn't already guess from the name itself.",
-    examples: "The request body or primary success response has no example payload, so a developer has to guess the shape of a valid request or response instead of copying a working sample.",
-    errors: "A 2xx-only endpoint has no error responses documented at all, or a documented error response has no meaningful description of when it occurs.",
-    constraints: "A string parameter whose name implies a fixed value set has no enum/format/length limit, or a numeric parameter has no minimum/maximum.",
-    required: "Whether a parameter is required isn't explicitly stated, so a developer has to assume it's optional, which may be wrong and cause failed requests."
-  };
-
-  var ICON_INFO_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/>' +
-    '<circle cx="8" cy="5.1" r="0.9" fill="currentColor"/>' +
-    '<line x1="8" y1="7.4" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>' +
-    '</svg>';
-
-  var ICON_COPY_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<rect x="5.5" y="5.5" width="8" height="8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
-    '<path d="M3.5 10.5v-7A1.3 1.3 0 0 1 4.8 2.2h7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' +
-    '</svg>';
-
-  var ICON_CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg>';
-
-  // ---------------------------------------------------------------------
-  // DOM references
-  // ---------------------------------------------------------------------
-  var specInput = document.getElementById("specInput");
-  var urlInput = document.getElementById("urlInput");
-  var fetchUrlBtn = document.getElementById("fetchUrlBtn");
-  var exampleSelect = document.getElementById("exampleSelect");
-  var runBtn = document.getElementById("runBtn");
-  var statusMsg = document.getElementById("statusMsg");
-  var errorCard = document.getElementById("errorCard");
-  var errorText = document.getElementById("errorText");
-  var reportSection = document.getElementById("reportSection");
-
-  var gradeBadge = document.getElementById("gradeBadge");
-  var scoreNum = document.getElementById("scoreNum");
-  var endpointCountEl = document.getElementById("endpointCount");
-  var issueCountEl = document.getElementById("issueCount");
-  var breakdownEl = document.getElementById("breakdown");
-  var methodologyToggle = document.getElementById("methodologyToggle");
-  var methodologyPanel = document.getElementById("methodologyPanel");
-
-  var searchInput = document.getElementById("searchInput");
-  var gradeFilter = document.getElementById("gradeFilter");
-  var sortSelect = document.getElementById("sortSelect");
-  var resultCount = document.getElementById("resultCount");
-  var endpointTbody = document.getElementById("endpointTbody");
-  var emptyState = document.getElementById("emptyState");
-  var categoryFilterIndicator = document.getElementById("categoryFilterIndicator");
-  var categoryFilterLabel = document.getElementById("categoryFilterLabel");
-  var clearCategoryFilterBtn = document.getElementById("clearCategoryFilter");
-  var tableControls = document.getElementById("tableControls");
-
-  // Both the top and bottom pagination bars are generated from this one
-  // template and kept in sync by acting on the same state.page value – there
-  // is exactly one source of truth for pagination markup and logic, just two
-  // rendered instances of it.
-  var PAGINATION_HTML =
-    '<button type="button" class="btn-secondary pagination-btn pagination-first" aria-label="First page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M12.5 3.5L7.5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M8 3.5L3 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>' +
-    '<button type="button" class="btn-secondary pagination-btn pagination-prev" aria-label="Previous page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M10 3.5L5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>' +
-    '<span class="pagination-indicator">Page 1 of 1</span>' +
-    '<button type="button" class="btn-secondary pagination-btn pagination-next" aria-label="Next page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M6 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>' +
-    '<button type="button" class="btn-secondary pagination-btn pagination-last" aria-label="Last page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M3.5 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M8 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>';
-
-  var paginationContainers = [document.getElementById("paginationTop"), document.getElementById("paginationBottom")];
-  paginationContainers.forEach(function (el) { el.innerHTML = PAGINATION_HTML; });
-
-  var pageIndicators = document.querySelectorAll(".pagination-indicator");
-  var firstPageBtns = document.querySelectorAll(".pagination-first");
-  var prevPageBtns = document.querySelectorAll(".pagination-prev");
-  var nextPageBtns = document.querySelectorAll(".pagination-next");
-  var lastPageBtns = document.querySelectorAll(".pagination-last");
-
-  var PAGE_SIZE = 25;
-
-  var state = {
-    endpoints: [],
-    view: [],
-    categoryFilter: null,
-    page: 1
-  };
-
   // ---------------------------------------------------------------------
   // Small utilities
   // ---------------------------------------------------------------------
-  function esc(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
-
-  // Keeps a trailing icon glued to the last word of a label so it can never
-  // wrap onto its own line – the last word + icon are wrapped together in a
-  // white-space:nowrap span, so they move to the next line as one unit if
-  // they don't fit, but never split apart.
-  function buildLabelHtml(label, trailingHtml) {
-    if (!trailingHtml) return esc(label);
-    var words = label.split(" ");
-    var lastWord = words.pop();
-    var rest = words.join(" ");
-    return (rest ? esc(rest) + " " : "") + '<span class="breakdown-label-tail">' + esc(lastWord) + trailingHtml + "</span>";
-  }
-
-  function setStatus(msg) { statusMsg.textContent = msg || ""; }
-
-  function showError(msg) {
-    errorText.textContent = msg;
-    errorCard.hidden = false;
-  }
-
-  function clearError() {
-    errorCard.hidden = true;
-    errorText.textContent = "";
-  }
-
   function isMissing(s) {
     return typeof s !== "string" || s.trim().length === 0;
   }
@@ -1143,6 +1018,23 @@
   // ---------------------------------------------------------------------
   // Parsing
   // ---------------------------------------------------------------------
+  // Resolves the YAML parser without ever referencing a bare, possibly-
+  // undeclared global: the browser build loads js-yaml from a CDN <script>
+  // tag (window.jsyaml); a future Node/CLI build would get it via
+  // require("js-yaml"). Checking `typeof` first means this never throws a
+  // ReferenceError in either environment, even if neither is available.
+  function resolveYamlLib() {
+    if (typeof jsyaml !== "undefined") return jsyaml;
+    if (typeof require === "function") {
+      try {
+        return require("js-yaml");
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   function parseSpecText(text) {
     var trimmed = text.trim();
     if (!trimmed) {
@@ -1153,8 +1045,12 @@
       spec = JSON.parse(trimmed);
       return { spec: spec };
     } catch (jsonErr) {
+      var yamlLib = resolveYamlLib();
+      if (!yamlLib) {
+        return { error: "This doesn't look like valid JSON, and no YAML parser is available to try it as YAML. Check for syntax errors and try again." };
+      }
       try {
-        spec = jsyaml.load(trimmed);
+        spec = yamlLib.load(trimmed);
       } catch (yamlErr) {
         return { error: "This doesn't look like valid JSON or YAML. Check for syntax errors (a stray comma, an unclosed bracket, inconsistent indentation) and try again." };
       }
@@ -1408,17 +1304,18 @@
   }
 
   // ---------------------------------------------------------------------
-  // Rendering
+  // Aggregation: overall score/grade, total issues, and a per-category tally
+  // sorted by count descending. This is the same computation the UI used to
+  // do inline inside its render function – moved here so "how a spec is
+  // scored" lives entirely in the engine, and rendering only ever displays
+  // numbers it's handed.
   // ---------------------------------------------------------------------
-  function renderSummary(endpoints) {
-    var overall = endpoints.length ? Math.round(endpoints.reduce(function (s, e) { return s + e.score; }, 0) / endpoints.length) : 0;
-    var grade = gradeFor(overall);
+  function summarize(endpoints) {
+    var overallScore = endpoints.length
+      ? Math.round(endpoints.reduce(function (s, e) { return s + e.score; }, 0) / endpoints.length)
+      : 0;
+    var overallGrade = gradeFor(overallScore);
     var totalIssues = endpoints.reduce(function (s, e) { return s + e.issues.length; }, 0);
-
-    gradeBadge.textContent = grade;
-    scoreNum.textContent = overall;
-    endpointCountEl.textContent = endpoints.length;
-    issueCountEl.textContent = totalIssues;
 
     var byCategory = {};
     endpoints.forEach(function (e) {
@@ -1427,9 +1324,224 @@
       });
     });
 
-    var rows = CATEGORY_ORDER.filter(function (c) { return byCategory[c]; })
-      .map(function (c) { return { category: c, count: byCategory[c] }; })
+    var categoryBreakdown = CATEGORY_ORDER.filter(function (c) { return byCategory[c]; })
+      .map(function (c) { return { category: c, label: CATEGORY_LABELS[c] || c, count: byCategory[c] }; })
       .sort(function (a, b) { return b.count - a.count; });
+
+    return {
+      overallScore: overallScore,
+      overallGrade: overallGrade,
+      totalIssues: totalIssues,
+      categoryBreakdown: categoryBreakdown
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Single entry point: raw spec text in, a full audit result or an error
+  // out. Internally just composes the granular functions above – the browser
+  // UI calls those directly instead (see runAudit in the UI layer) so it can
+  // show a status message between the parse and check stages on huge specs,
+  // but a future CLI (or any other consumer) only needs this one function.
+  // ---------------------------------------------------------------------
+  function auditSpec(specText) {
+    var parsed = parseSpecText(specText);
+    if (parsed.error) {
+      return { error: parsed.error, stage: "parse" };
+    }
+    var validationError = validateSpec(parsed.spec);
+    if (validationError) {
+      return { error: validationError, stage: "validate" };
+    }
+    var endpoints = extractEndpoints(parsed.spec);
+    if (endpoints.length === 0) {
+      return {
+        error: "No operations (GET, POST, PUT, PATCH, DELETE, etc.) were found under any path in this spec.",
+        stage: "extract"
+      };
+    }
+    var summary = summarize(endpoints);
+    return {
+      endpoints: endpoints,
+      overallScore: summary.overallScore,
+      overallGrade: summary.overallGrade,
+      totalIssues: summary.totalIssues,
+      categoryBreakdown: summary.categoryBreakdown
+    };
+  }
+
+  global.SpecAuditEngine = {
+    EXAMPLES: EXAMPLES,
+    HTTP_METHODS: HTTP_METHODS,
+    WEIGHT_HIGH: WEIGHT_HIGH,
+    WEIGHT_LOW: WEIGHT_LOW,
+    CATEGORY_LABELS: CATEGORY_LABELS,
+    CATEGORY_ORDER: CATEGORY_ORDER,
+    parseSpecText: parseSpecText,
+    validateSpec: validateSpec,
+    extractEndpoints: extractEndpoints,
+    gradeFor: gradeFor,
+    summarize: summarize,
+    auditSpec: auditSpec
+  };
+})(typeof window !== "undefined" ? window : this);
+
+// =============================================================================
+// UI LAYER
+// DOM rendering, event listeners, and filter/sort/pagination state. Everything
+// below consumes SpecAuditEngine's output only – no parsing, $ref-resolution,
+// or scoring logic lives down here.
+// =============================================================================
+(function () {
+  "use strict";
+
+  // One-sentence explanation per category, condensed directly from the addIssue(...)
+  // messages produced in buildEndpoint() (engine) – kept in sync with that wording
+  // rather than freshly authored, so the explanation never drifts from what the
+  // check actually flags. Shown in a click-to-expand panel below each breakdown row.
+  var CATEGORY_EXPLANATIONS = {
+    description: "An endpoint or parameter has no summary/description – a developer has no way to tell what it does or what values it accepts without reading the source.",
+    "low-quality": "The description just restates the parameter name in words, adding no information a developer couldn't already guess from the name itself.",
+    examples: "The request body or primary success response has no example payload, so a developer has to guess the shape of a valid request or response instead of copying a working sample.",
+    errors: "A 2xx-only endpoint has no error responses documented at all, or a documented error response has no meaningful description of when it occurs.",
+    constraints: "A string parameter whose name implies a fixed value set has no enum/format/length limit, or a numeric parameter has no minimum/maximum.",
+    required: "Whether a parameter is required isn't explicitly stated, so a developer has to assume it's optional, which may be wrong and cause failed requests."
+  };
+
+  var ICON_INFO_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/>' +
+    '<circle cx="8" cy="5.1" r="0.9" fill="currentColor"/>' +
+    '<line x1="8" y1="7.4" x2="8" y2="11.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>' +
+    '</svg>';
+
+  var ICON_COPY_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<rect x="5.5" y="5.5" width="8" height="8" rx="1.3" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
+    '<path d="M3.5 10.5v-7A1.3 1.3 0 0 1 4.8 2.2h7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' +
+    '</svg>';
+
+  var ICON_CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+
+  // ---------------------------------------------------------------------
+  // DOM references
+  // ---------------------------------------------------------------------
+  var specInput = document.getElementById("specInput");
+  var urlInput = document.getElementById("urlInput");
+  var fetchUrlBtn = document.getElementById("fetchUrlBtn");
+  var exampleSelect = document.getElementById("exampleSelect");
+  var runBtn = document.getElementById("runBtn");
+  var statusMsg = document.getElementById("statusMsg");
+  var errorCard = document.getElementById("errorCard");
+  var errorText = document.getElementById("errorText");
+  var reportSection = document.getElementById("reportSection");
+
+  var gradeBadge = document.getElementById("gradeBadge");
+  var scoreNum = document.getElementById("scoreNum");
+  var endpointCountEl = document.getElementById("endpointCount");
+  var issueCountEl = document.getElementById("issueCount");
+  var breakdownEl = document.getElementById("breakdown");
+  var methodologyToggle = document.getElementById("methodologyToggle");
+  var methodologyPanel = document.getElementById("methodologyPanel");
+
+  var searchInput = document.getElementById("searchInput");
+  var gradeFilter = document.getElementById("gradeFilter");
+  var sortSelect = document.getElementById("sortSelect");
+  var resultCount = document.getElementById("resultCount");
+  var endpointTbody = document.getElementById("endpointTbody");
+  var emptyState = document.getElementById("emptyState");
+  var categoryFilterIndicator = document.getElementById("categoryFilterIndicator");
+  var categoryFilterLabel = document.getElementById("categoryFilterLabel");
+  var clearCategoryFilterBtn = document.getElementById("clearCategoryFilter");
+  var tableControls = document.getElementById("tableControls");
+
+  // Both the top and bottom pagination bars are generated from this one
+  // template and kept in sync by acting on the same state.page value – there
+  // is exactly one source of truth for pagination markup and logic, just two
+  // rendered instances of it.
+  var PAGINATION_HTML =
+    '<button type="button" class="btn-secondary pagination-btn pagination-first" aria-label="First page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M12.5 3.5L7.5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M8 3.5L3 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>' +
+    '<button type="button" class="btn-secondary pagination-btn pagination-prev" aria-label="Previous page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M10 3.5L5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>' +
+    '<span class="pagination-indicator">Page 1 of 1</span>' +
+    '<button type="button" class="btn-secondary pagination-btn pagination-next" aria-label="Next page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M6 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>' +
+    '<button type="button" class="btn-secondary pagination-btn pagination-last" aria-label="Last page">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M3.5 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M8 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg></button>';
+
+  var paginationContainers = [document.getElementById("paginationTop"), document.getElementById("paginationBottom")];
+  paginationContainers.forEach(function (el) { el.innerHTML = PAGINATION_HTML; });
+
+  var pageIndicators = document.querySelectorAll(".pagination-indicator");
+  var firstPageBtns = document.querySelectorAll(".pagination-first");
+  var prevPageBtns = document.querySelectorAll(".pagination-prev");
+  var nextPageBtns = document.querySelectorAll(".pagination-next");
+  var lastPageBtns = document.querySelectorAll(".pagination-last");
+
+  var PAGE_SIZE = 25;
+
+  var state = {
+    endpoints: [],
+    view: [],
+    categoryFilter: null,
+    page: 1
+  };
+
+  // ---------------------------------------------------------------------
+  // Small utilities
+  // ---------------------------------------------------------------------
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // Keeps a trailing icon glued to the last word of a label so it can never
+  // wrap onto its own line – the last word + icon are wrapped together in a
+  // white-space:nowrap span, so they move to the next line as one unit if
+  // they don't fit, but never split apart.
+  function buildLabelHtml(label, trailingHtml) {
+    if (!trailingHtml) return esc(label);
+    var words = label.split(" ");
+    var lastWord = words.pop();
+    var rest = words.join(" ");
+    return (rest ? esc(rest) + " " : "") + '<span class="breakdown-label-tail">' + esc(lastWord) + trailingHtml + "</span>";
+  }
+
+  function setStatus(msg) { statusMsg.textContent = msg || ""; }
+
+  function showError(msg) {
+    errorText.textContent = msg;
+    errorCard.hidden = false;
+  }
+
+  function clearError() {
+    errorCard.hidden = true;
+    errorText.textContent = "";
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  function renderSummary(endpoints) {
+    var summary = SpecAuditEngine.summarize(endpoints);
+
+    gradeBadge.textContent = summary.overallGrade;
+    scoreNum.textContent = summary.overallScore;
+    endpointCountEl.textContent = endpoints.length;
+    issueCountEl.textContent = summary.totalIssues;
+
+    var rows = summary.categoryBreakdown;
 
     if (rows.length === 0) {
       breakdownEl.innerHTML = '<div class="breakdown-empty">No issues found – every check passed.</div>';
@@ -1448,7 +1560,7 @@
         : '';
       var row = '<div class="breakdown-row' + (isActive ? ' active' : '') + '" data-category="' + esc(r.category) + '">' +
         '<span class="breakdown-label-wrap">' +
-        '<span class="breakdown-label">' + buildLabelHtml(CATEGORY_LABELS[r.category] || r.category, infoHtml) + '</span>' +
+        '<span class="breakdown-label">' + buildLabelHtml(r.label, infoHtml) + '</span>' +
         '</span>' +
         '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span>' +
         '<span class="breakdown-count">' + r.count + '</span>' +
@@ -1490,7 +1602,7 @@
   function updateCategoryFilterIndicator() {
     if (state.categoryFilter) {
       categoryFilterIndicator.hidden = false;
-      categoryFilterLabel.textContent = CATEGORY_LABELS[state.categoryFilter] || state.categoryFilter;
+      categoryFilterLabel.textContent = SpecAuditEngine.CATEGORY_LABELS[state.categoryFilter] || state.categoryFilter;
     } else {
       categoryFilterIndicator.hidden = true;
     }
@@ -1515,7 +1627,7 @@
     var f = currentFilters();
     var view = state.endpoints.filter(function (e) {
       if (f.search && e.path.toLowerCase().indexOf(f.search) === -1) return false;
-      if (f.grade && gradeFor(e.score) !== f.grade) return false;
+      if (f.grade && SpecAuditEngine.gradeFor(e.score) !== f.grade) return false;
       if (state.categoryFilter && !e.issues.some(function (i) { return i.category === state.categoryFilter; })) return false;
       return true;
     });
@@ -1551,7 +1663,7 @@
 
     var html = pageItems.map(function (e, i) {
       var absoluteIdx = startIdx + i;
-      var grade = gradeFor(e.score);
+      var grade = SpecAuditEngine.gradeFor(e.score);
       return '<tr class="endpoint-row" data-viewidx="' + absoluteIdx + '">' +
         '<td class="col-method"><span class="method-pill">' + esc(e.method) + '</span></td>' +
         '<td class="col-path"><span class="path-cell">' +
@@ -1741,14 +1853,14 @@
 
     setTimeout(function () {
       try {
-        var parsed = parseSpecText(text);
+        var parsed = SpecAuditEngine.parseSpecText(text);
         if (parsed.error) {
           showError(parsed.error);
           setStatus("");
           runBtn.disabled = false;
           return;
         }
-        var validationError = validateSpec(parsed.spec);
+        var validationError = SpecAuditEngine.validateSpec(parsed.spec);
         if (validationError) {
           showError(validationError);
           setStatus("");
@@ -1760,7 +1872,7 @@
 
         setTimeout(function () {
           try {
-            var endpoints = extractEndpoints(parsed.spec);
+            var endpoints = SpecAuditEngine.extractEndpoints(parsed.spec);
             if (endpoints.length === 0) {
               showError("No operations (GET, POST, PUT, PATCH, DELETE, etc.) were found under any path in this spec.");
               setStatus("");
@@ -1829,11 +1941,11 @@
 
   exampleSelect.addEventListener("change", function () {
     var key = exampleSelect.value;
-    if (!key || !EXAMPLES[key]) return;
+    if (!key || !SpecAuditEngine.EXAMPLES[key]) return;
     clearError();
     setStatus("Fetching example spec…");
     exampleSelect.disabled = true;
-    fetch(EXAMPLES[key])
+    fetch(SpecAuditEngine.EXAMPLES[key])
       .then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.text();
