@@ -1,0 +1,20 @@
+{
+  "name": "spec-audit-cli",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Command-line runner for the OpenAPI Spec Audit tool. Not published to npm - clone the repo and run locally, or wire into your own CI.",
+  "bin": {
+    "spec-audit": "./audit.js"
+  },
+  "main": "audit.js",
+  "scripts": {
+    "start": "node audit.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}
