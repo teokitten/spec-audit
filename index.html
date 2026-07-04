@@ -15,6 +15,8 @@
     --text: #FAFAF9;
     --text-secondary: #A8A29E;
     --text-muted: #78716C;
+    --positive: #4ADE80;
+    --negative: #F87171;
   }
 
   * { box-sizing: border-box; }
@@ -245,6 +247,135 @@
     font-size: 14px;
     line-height: 1.6;
     color: var(--text);
+  }
+
+  /* Diff / trend view */
+  .diff-intro {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 16px;
+  }
+
+  .diff-upload-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .diff-upload-row input[type="file"] {
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 100%;
+  }
+
+  .diff-file-status {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .diff-error {
+    font-size: 13px;
+    color: var(--negative);
+    margin: 14px 0 0;
+  }
+  .diff-error[hidden] { display: none; }
+
+  .diff-results {
+    margin-top: 22px;
+    border-top: 1px solid var(--divider);
+    padding-top: 22px;
+  }
+  .diff-results[hidden] { display: none; }
+
+  .diff-config-note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--accent);
+    font-style: italic;
+    margin: 0 0 18px;
+  }
+  .diff-config-note[hidden] { display: none; }
+
+  .diff-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    margin-bottom: 22px;
+  }
+
+  .diff-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .diff-stat-value {
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .diff-endpoints-label {
+    margin-top: 22px;
+    border-top: 1px solid var(--divider);
+    padding-top: 22px;
+  }
+
+  .diff-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .diff-breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 13px;
+  }
+  .diff-breakdown-label {
+    color: var(--text-secondary);
+  }
+  .diff-breakdown-empty {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .delta-positive { color: var(--positive); }
+  .delta-negative { color: var(--negative); }
+  .delta-neutral { color: var(--text-muted); }
+
+  th.col-status { text-align: left; }
+  td.col-status { text-align: left; }
+
+  .status-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border-radius: 4px;
+    padding: 3px 8px;
+  }
+  .status-pill.status-regressed { background: rgba(248, 113, 113, 0.15); color: var(--negative); }
+  .status-pill.status-improved { background: rgba(74, 222, 128, 0.15); color: var(--positive); }
+  .status-pill.status-unchanged { background: var(--bg); color: var(--text-muted); }
+  .status-pill.status-new { background: rgba(74, 222, 128, 0.15); color: var(--positive); }
+  .status-pill.status-removed { background: var(--bg); color: var(--text-muted); }
+
+  .diff-category-changes {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .diff-category-changes .issue-field {
+    color: var(--text-secondary);
+  }
+
+  tbody tr.endpoint-row.no-detail {
+    cursor: default;
+  }
+  tbody tr.endpoint-row.no-detail:hover {
+    background: none;
   }
 
   /* Summary card */
@@ -677,7 +808,7 @@
     display: none;
   }
 
-  .pagination-indicator {
+  .pagination-indicator, .diff-pagination-indicator {
     font-size: 13px;
     color: var(--text-muted);
   }
@@ -846,6 +977,64 @@
       <div class="breakdown-section">
         <div class="field-label">Issues by category</div>
         <div class="breakdown" id="breakdown"></div>
+      </div>
+    </section>
+
+    <section class="card diff-card">
+      <div class="field-label">Compare to previous report</div>
+      <p class="diff-intro">Upload a JSON report previously exported from this tool to see what's changed since then.</p>
+      <div class="diff-upload-row">
+        <input type="file" id="diffFileInput" accept="application/json,.json" />
+        <span class="diff-file-status" id="diffFileStatus"></span>
+        <button type="button" class="btn-secondary" id="diffClearBtn" hidden>Clear comparison</button>
+      </div>
+      <p class="diff-error" id="diffError" hidden></p>
+
+      <div class="diff-results" id="diffResults" hidden>
+        <p class="diff-config-note" id="diffConfigNote" hidden>Note: these reports used different check configurations – category comparisons may not be meaningful.</p>
+
+        <div class="diff-summary" id="diffSummary"></div>
+
+        <div class="breakdown-section">
+          <div class="field-label">Category changes</div>
+          <div class="diff-breakdown" id="diffBreakdown"></div>
+        </div>
+
+        <div class="field-label diff-endpoints-label">Endpoint changes</div>
+        <div class="table-controls" id="diffTableControls">
+          <input type="text" id="diffSearchInput" placeholder="Filter by path…" />
+          <select id="diffStatusFilter">
+            <option value="">All changes</option>
+            <option value="regressed">Regressed</option>
+            <option value="improved">Improved</option>
+            <option value="unchanged">Unchanged</option>
+            <option value="new">New endpoints</option>
+            <option value="removed">Removed endpoints</option>
+          </select>
+          <select id="diffSortSelect">
+            <option value="delta-asc">Most regressed first</option>
+            <option value="delta-desc">Most improved first</option>
+            <option value="path-asc">Path (a–z)</option>
+            <option value="method-asc">Method</option>
+          </select>
+          <span class="result-count" id="diffResultCount"></span>
+        </div>
+        <div class="pagination" id="diffPaginationTop" hidden></div>
+        <div class="table-scroll">
+          <table id="diffTable">
+            <thead>
+              <tr>
+                <th class="col-method">Method</th>
+                <th class="col-path">Path</th>
+                <th class="col-status">Change</th>
+                <th class="col-score">Score</th>
+              </tr>
+            </thead>
+            <tbody id="diffTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="diffEmptyState" hidden>No endpoints match the current filter.</div>
+        <div class="pagination" id="diffPaginationBottom" hidden></div>
       </div>
     </section>
 
@@ -1446,6 +1635,120 @@
   }
 
   // ---------------------------------------------------------------------
+  // Report comparison (diff/trend view). Both arguments are report objects
+  // shaped like this tool's own JSON export – { overallScore, overallGrade,
+  // totalIssues, categoryBreakdown, disabledChecks, endpoints }. Pure
+  // comparison of two already-computed reports: no re-auditing, no access to
+  // the original spec, so it works equally well from a previous session's
+  // exported file.
+  // ---------------------------------------------------------------------
+  function validateExportedReport(obj) {
+    if (!obj || typeof obj !== "object") {
+      return "This file doesn't look like a spec-audit JSON export.";
+    }
+    if (typeof obj.overallScore !== "number" || typeof obj.overallGrade !== "string" || !Array.isArray(obj.endpoints)) {
+      return "This file doesn't look like a spec-audit JSON export – expected fields (\"overallScore\", \"overallGrade\", \"endpoints\") are missing.";
+    }
+    return null;
+  }
+
+  function categoryCountsFor(issues) {
+    var counts = {};
+    (issues || []).forEach(function (i) { counts[i.category] = (counts[i.category] || 0) + 1; });
+    return counts;
+  }
+
+  // Every category that appears on either side, even if only one side has
+  // it, since a category going from some issues to zero (or vice versa) is
+  // exactly the "appeared/disappeared entirely" case callers need to see.
+  function diffCategoryCounts(prevCounts, currCounts) {
+    var categories = {};
+    Object.keys(prevCounts).forEach(function (c) { categories[c] = true; });
+    Object.keys(currCounts).forEach(function (c) { categories[c] = true; });
+    var result = [];
+    Object.keys(categories).forEach(function (c) {
+      var previousCount = prevCounts[c] || 0;
+      var currentCount = currCounts[c] || 0;
+      if (previousCount !== currentCount) {
+        result.push({
+          category: c,
+          label: CATEGORY_LABELS[c] || c,
+          previousCount: previousCount,
+          currentCount: currentCount,
+          delta: currentCount - previousCount
+        });
+      }
+    });
+    return result;
+  }
+
+  function diffReports(previous, current) {
+    var prevByKey = {};
+    previous.endpoints.forEach(function (e) { prevByKey[e.method + " " + e.path] = e; });
+    var currByKey = {};
+    current.endpoints.forEach(function (e) { currByKey[e.method + " " + e.path] = e; });
+
+    var allKeys = {};
+    Object.keys(prevByKey).forEach(function (k) { allKeys[k] = true; });
+    Object.keys(currByKey).forEach(function (k) { allKeys[k] = true; });
+
+    var endpoints = Object.keys(allKeys).map(function (key) {
+      var prevE = prevByKey[key];
+      var currE = currByKey[key];
+      if (prevE && currE) {
+        var scoreDelta = currE.score - prevE.score;
+        var status = scoreDelta > 0 ? "improved" : scoreDelta < 0 ? "regressed" : "unchanged";
+        return {
+          path: currE.path,
+          method: currE.method,
+          status: status,
+          previousScore: prevE.score,
+          currentScore: currE.score,
+          scoreDelta: scoreDelta,
+          categoryChanges: diffCategoryCounts(categoryCountsFor(prevE.issues), categoryCountsFor(currE.issues))
+        };
+      }
+      if (currE) {
+        return { path: currE.path, method: currE.method, status: "new", previousScore: null, currentScore: currE.score, scoreDelta: null, categoryChanges: [] };
+      }
+      return { path: prevE.path, method: prevE.method, status: "removed", previousScore: prevE.score, currentScore: null, scoreDelta: null, categoryChanges: [] };
+    });
+
+    var prevCategoryCounts = {};
+    (previous.categoryBreakdown || []).forEach(function (r) { prevCategoryCounts[r.category] = r.count; });
+    var currCategoryCounts = {};
+    (current.categoryBreakdown || []).forEach(function (r) { currCategoryCounts[r.category] = r.count; });
+    var categoryDeltas = CATEGORY_ORDER
+      .filter(function (c) { return (prevCategoryCounts[c] || 0) !== 0 || (currCategoryCounts[c] || 0) !== 0; })
+      .map(function (c) {
+        var previousCount = prevCategoryCounts[c] || 0;
+        var currentCount = currCategoryCounts[c] || 0;
+        return { category: c, label: CATEGORY_LABELS[c] || c, previousCount: previousCount, currentCount: currentCount, delta: currentCount - previousCount };
+      });
+
+    var prevDisabled = (previous.disabledChecks || []).map(function (d) { return d.category; }).sort();
+    var currDisabled = (current.disabledChecks || []).map(function (d) { return d.category; }).sort();
+    var configDiffers = JSON.stringify(prevDisabled) !== JSON.stringify(currDisabled);
+
+    return {
+      previousScore: previous.overallScore,
+      currentScore: current.overallScore,
+      scoreDelta: current.overallScore - previous.overallScore,
+      previousGrade: previous.overallGrade,
+      currentGrade: current.overallGrade,
+      gradeChanged: previous.overallGrade !== current.overallGrade,
+      previousTotalIssues: previous.totalIssues,
+      currentTotalIssues: current.totalIssues,
+      totalIssuesDelta: current.totalIssues - previous.totalIssues,
+      categoryDeltas: categoryDeltas,
+      configDiffers: configDiffers,
+      previousDisabledChecks: previous.disabledChecks || [],
+      currentDisabledChecks: current.disabledChecks || [],
+      endpoints: endpoints
+    };
+  }
+
+  // ---------------------------------------------------------------------
   // Single entry point: raw spec text in, a full audit result or an error
   // out. Internally just composes the granular functions above – the browser
   // UI calls those directly instead (see runAudit in the UI layer) so it can
@@ -1491,6 +1794,8 @@
     extractEndpoints: extractEndpoints,
     gradeFor: gradeFor,
     summarize: summarize,
+    validateExportedReport: validateExportedReport,
+    diffReports: diffReports,
     auditSpec: auditSpec
   };
 })(typeof window !== "undefined" ? window : this);
@@ -1569,30 +1874,51 @@
   var clearCategoryFilterBtn = document.getElementById("clearCategoryFilter");
   var tableControls = document.getElementById("tableControls");
 
-  // Both the top and bottom pagination bars are generated from this one
-  // template and kept in sync by acting on the same state.page value – there
-  // is exactly one source of truth for pagination markup and logic, just two
-  // rendered instances of it.
-  var PAGINATION_HTML =
-    '<button type="button" class="btn-secondary pagination-btn pagination-first" aria-label="First page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M12.5 3.5L7.5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M8 3.5L3 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>' +
-    '<button type="button" class="btn-secondary pagination-btn pagination-prev" aria-label="Previous page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M10 3.5L5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>' +
-    '<span class="pagination-indicator">Page 1 of 1</span>' +
-    '<button type="button" class="btn-secondary pagination-btn pagination-next" aria-label="Next page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M6 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>' +
-    '<button type="button" class="btn-secondary pagination-btn pagination-last" aria-label="Last page">' +
-    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
-    '<path d="M3.5 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M8 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg></button>';
+  var diffFileInput = document.getElementById("diffFileInput");
+  var diffFileStatus = document.getElementById("diffFileStatus");
+  var diffClearBtn = document.getElementById("diffClearBtn");
+  var diffErrorEl = document.getElementById("diffError");
+  var diffResultsEl = document.getElementById("diffResults");
+  var diffConfigNote = document.getElementById("diffConfigNote");
+  var diffSummaryEl = document.getElementById("diffSummary");
+  var diffBreakdownEl = document.getElementById("diffBreakdown");
+  var diffSearchInput = document.getElementById("diffSearchInput");
+  var diffStatusFilter = document.getElementById("diffStatusFilter");
+  var diffSortSelect = document.getElementById("diffSortSelect");
+  var diffResultCount = document.getElementById("diffResultCount");
+  var diffTbody = document.getElementById("diffTbody");
+  var diffEmptyState = document.getElementById("diffEmptyState");
+
+  // Both the top and bottom pagination bars (for a given table) are
+  // generated from this one template and kept in sync by acting on the same
+  // page-state value – there is exactly one source of truth for pagination
+  // markup and logic, just two rendered instances of it. `classPrefix` keeps
+  // the main endpoint table's pagination buttons and the diff table's
+  // pagination buttons independently queryable via distinct classes, since
+  // both live in the same document.
+  function buildPaginationHtml(classPrefix) {
+    return '<button type="button" class="btn-secondary pagination-btn ' + classPrefix + '-first" aria-label="First page">' +
+      '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+      '<path d="M12.5 3.5L7.5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M8 3.5L3 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg></button>' +
+      '<button type="button" class="btn-secondary pagination-btn ' + classPrefix + '-prev" aria-label="Previous page">' +
+      '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+      '<path d="M10 3.5L5 8l5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg></button>' +
+      '<span class="' + classPrefix + '-indicator">Page 1 of 1</span>' +
+      '<button type="button" class="btn-secondary pagination-btn ' + classPrefix + '-next" aria-label="Next page">' +
+      '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+      '<path d="M6 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg></button>' +
+      '<button type="button" class="btn-secondary pagination-btn ' + classPrefix + '-last" aria-label="Last page">' +
+      '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+      '<path d="M3.5 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M8 3.5l5 4.5-5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg></button>';
+  }
+
+  var PAGINATION_HTML = buildPaginationHtml("pagination");
 
   var paginationContainers = [document.getElementById("paginationTop"), document.getElementById("paginationBottom")];
   paginationContainers.forEach(function (el) { el.innerHTML = PAGINATION_HTML; });
@@ -1602,6 +1928,16 @@
   var prevPageBtns = document.querySelectorAll(".pagination-prev");
   var nextPageBtns = document.querySelectorAll(".pagination-next");
   var lastPageBtns = document.querySelectorAll(".pagination-last");
+
+  var DIFF_PAGINATION_HTML = buildPaginationHtml("diff-pagination");
+  var diffPaginationContainers = [document.getElementById("diffPaginationTop"), document.getElementById("diffPaginationBottom")];
+  diffPaginationContainers.forEach(function (el) { el.innerHTML = DIFF_PAGINATION_HTML; });
+
+  var diffPageIndicators = document.querySelectorAll(".diff-pagination-indicator");
+  var diffFirstPageBtns = document.querySelectorAll(".diff-pagination-first");
+  var diffPrevPageBtns = document.querySelectorAll(".diff-pagination-prev");
+  var diffNextPageBtns = document.querySelectorAll(".diff-pagination-next");
+  var diffLastPageBtns = document.querySelectorAll(".diff-pagination-last");
 
   var PAGE_SIZE = 25;
 
@@ -1615,6 +1951,14 @@
     // localStorage, which isn't available here) so it survives across
     // multiple audit runs within the same page load.
     enabledCategories: new Set(SpecAuditEngine.CONFIGURABLE_CATEGORIES)
+  };
+
+  var diffState = {
+    previousReport: null,
+    previousFileName: null,
+    diff: null,
+    view: [],
+    page: 1
   };
 
   // ---------------------------------------------------------------------
@@ -2042,6 +2386,7 @@
             reportSection.hidden = false;
             exportJsonBtn.disabled = false;
             exportHtmlBtn.disabled = false;
+            updateDiff();
             setStatus("Audited " + endpoints.length + " endpoints.");
           } catch (e) {
             showError("Something went wrong while checking this spec: " + e.message);
@@ -2167,10 +2512,14 @@
     });
   }
 
-  function exportJson() {
+  // Same shape produced for the JSON export and consumed by the diff/trend
+  // view (both as "current report" and, once round-tripped through a user's
+  // download-then-reupload, as a "previous report") – one source of truth
+  // for what a report object looks like.
+  function buildReportPayload() {
     var summary = SpecAuditEngine.summarize(state.endpoints);
     var disabled = disabledCategories();
-    var payload = {
+    return {
       overallScore: summary.overallScore,
       overallGrade: summary.overallGrade,
       totalIssues: summary.totalIssues,
@@ -2189,6 +2538,10 @@
         };
       })
     };
+  }
+
+  function exportJson() {
+    var payload = buildReportPayload();
     downloadBlob(JSON.stringify(payload, null, 2), "spec-audit-" + isoDateStamp() + ".json", "application/json");
   }
 
@@ -2317,6 +2670,307 @@
 
   exportJsonBtn.addEventListener("click", exportJson);
   exportHtmlBtn.addEventListener("click", exportHtmlReport);
+
+  // ---------------------------------------------------------------------
+  // Diff / trend view: compare the current audit against a previously
+  // exported JSON report. All the actual comparison math lives in
+  // SpecAuditEngine.diffReports – this section only uploads, validates, and
+  // renders it, same division of labor as the rest of the UI layer.
+  // ---------------------------------------------------------------------
+  function showDiffError(message) {
+    diffErrorEl.textContent = message;
+    diffErrorEl.hidden = false;
+  }
+
+  function clearDiffError() {
+    diffErrorEl.hidden = true;
+    diffErrorEl.textContent = "";
+  }
+
+  function formatDelta(delta) {
+    return delta > 0 ? "+" + delta : String(delta);
+  }
+
+  function deltaClass(delta) {
+    if (delta > 0) return "delta-positive";
+    if (delta < 0) return "delta-negative";
+    return "delta-neutral";
+  }
+
+  // A lower issue count is the improvement here, so – unlike a score delta –
+  // a negative number gets the "positive" styling.
+  function inverseDeltaClass(delta) {
+    if (delta < 0) return "delta-positive";
+    if (delta > 0) return "delta-negative";
+    return "delta-neutral";
+  }
+
+  function renderDiffSummary(diff) {
+    diffConfigNote.hidden = !diff.configDiffers;
+
+    var gradeHtml = diff.gradeChanged
+      ? esc(diff.previousGrade) + ' → ' + esc(diff.currentGrade)
+      : esc(diff.currentGrade) + ' <span class="delta-neutral">(unchanged)</span>';
+
+    diffSummaryEl.innerHTML =
+      '<div class="diff-stat"><span class="value-label">Overall score</span>' +
+      '<span class="diff-stat-value">' + diff.previousScore + ' → ' + diff.currentScore +
+      ' <span class="' + deltaClass(diff.scoreDelta) + '">(' + formatDelta(diff.scoreDelta) + ')</span></span></div>' +
+      '<div class="diff-stat"><span class="value-label">Grade</span>' +
+      '<span class="diff-stat-value">' + gradeHtml + '</span></div>' +
+      '<div class="diff-stat"><span class="value-label">Total issues</span>' +
+      '<span class="diff-stat-value">' + diff.previousTotalIssues + ' → ' + diff.currentTotalIssues +
+      ' <span class="' + inverseDeltaClass(diff.totalIssuesDelta) + '">(' + formatDelta(diff.totalIssuesDelta) + ')</span></span></div>';
+
+    diffBreakdownEl.innerHTML = diff.categoryDeltas.length === 0
+      ? '<div class="diff-breakdown-empty">No category-level changes.</div>'
+      : diff.categoryDeltas.map(function (r) {
+          return '<div class="diff-breakdown-row">' +
+            '<span class="diff-breakdown-label">' + esc(r.label) + '</span>' +
+            '<span>' + r.previousCount + ' → ' + r.currentCount +
+            ' <span class="' + inverseDeltaClass(r.delta) + '">(' + formatDelta(r.delta) + ')</span></span>' +
+            '</div>';
+        }).join("");
+  }
+
+  var DIFF_STATUS_LABELS = {
+    improved: "Improved",
+    regressed: "Regressed",
+    unchanged: "Unchanged",
+    "new": "New endpoint",
+    removed: "Removed endpoint"
+  };
+
+  function diffCurrentFilters() {
+    return {
+      search: diffSearchInput.value.trim().toLowerCase(),
+      status: diffStatusFilter.value,
+      sort: diffSortSelect.value
+    };
+  }
+
+  function applyDiffFilters() {
+    if (!diffState.diff) return;
+    var f = diffCurrentFilters();
+    var view = diffState.diff.endpoints.filter(function (e) {
+      if (f.search && e.path.toLowerCase().indexOf(f.search) === -1) return false;
+      if (f.status && e.status !== f.status) return false;
+      return true;
+    });
+
+    view.sort(function (a, b) {
+      switch (f.sort) {
+        case "delta-desc": return (b.scoreDelta || 0) - (a.scoreDelta || 0);
+        case "path-asc": return a.path.localeCompare(b.path) || a.method.localeCompare(b.method);
+        case "method-asc": return a.method.localeCompare(b.method) || a.path.localeCompare(b.path);
+        case "delta-asc":
+        default: return (a.scoreDelta || 0) - (b.scoreDelta || 0);
+      }
+    });
+
+    diffState.view = view;
+    diffState.page = 1;
+    renderDiffTable();
+  }
+
+  function diffScoreCellHtml(e) {
+    if (e.status === "new") return '<span class="delta-positive">new → ' + e.currentScore + '</span>';
+    if (e.status === "removed") return '<span class="delta-neutral">' + e.previousScore + ' → removed</span>';
+    return e.previousScore + ' → ' + e.currentScore + ' <span class="' + deltaClass(e.scoreDelta) + '">(' + formatDelta(e.scoreDelta) + ')</span>';
+  }
+
+  function renderDiffTable() {
+    var view = diffState.view;
+    diffResultCount.textContent = view.length + " of " + diffState.diff.endpoints.length + " endpoints";
+    diffEmptyState.hidden = view.length !== 0;
+    diffPaginationContainers.forEach(function (el) { el.hidden = view.length === 0; });
+
+    var totalPages = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
+    if (diffState.page > totalPages) diffState.page = totalPages;
+    if (diffState.page < 1) diffState.page = 1;
+
+    var startIdx = (diffState.page - 1) * PAGE_SIZE;
+    var pageItems = view.slice(startIdx, startIdx + PAGE_SIZE);
+
+    diffTbody.innerHTML = pageItems.map(function (e, i) {
+      var absoluteIdx = startIdx + i;
+      var hasDetail = e.categoryChanges.length > 0;
+      return '<tr class="endpoint-row' + (hasDetail ? '' : ' no-detail') + '" data-viewidx="' + absoluteIdx + '">' +
+        '<td class="col-method"><span class="method-pill">' + esc(e.method) + '</span></td>' +
+        '<td class="col-path"><span class="path-cell">' +
+        '<span class="chevron"' + (hasDetail ? '' : ' style="visibility:hidden"') + '>&#9656;</span>' +
+        '<span class="path-text">' + esc(e.path) + '</span>' +
+        '</span></td>' +
+        '<td class="col-status"><span class="status-pill status-' + e.status + '">' + DIFF_STATUS_LABELS[e.status] + '</span></td>' +
+        '<td class="col-score">' + diffScoreCellHtml(e) + '</td>' +
+        '</tr>';
+    }).join("");
+
+    var indicatorText = "Page " + diffState.page + " of " + totalPages;
+    diffPageIndicators.forEach(function (el) { el.textContent = indicatorText; });
+    diffFirstPageBtns.forEach(function (el) { el.disabled = diffState.page <= 1; });
+    diffPrevPageBtns.forEach(function (el) { el.disabled = diffState.page <= 1; });
+    diffNextPageBtns.forEach(function (el) { el.disabled = diffState.page >= totalPages; });
+    diffLastPageBtns.forEach(function (el) { el.disabled = diffState.page >= totalPages; });
+  }
+
+  function buildDiffDetailRow(endpoint) {
+    var tr = document.createElement("tr");
+    tr.className = "detail-row";
+    var td = document.createElement("td");
+    td.colSpan = 4;
+
+    var list = document.createElement("div");
+    list.className = "issue-list diff-category-changes";
+    endpoint.categoryChanges.forEach(function (change) {
+      var row = document.createElement("div");
+      row.className = "issue";
+      var field = document.createElement("span");
+      field.className = "issue-field";
+      field.textContent = change.label;
+      var msg = document.createElement("span");
+      msg.className = "issue-msg " + inverseDeltaClass(change.delta);
+      msg.textContent = change.previousCount + " → " + change.currentCount + " (" + formatDelta(change.delta) + ")";
+      row.appendChild(field);
+      row.appendChild(msg);
+      list.appendChild(row);
+    });
+    td.appendChild(list);
+    tr.appendChild(td);
+    return tr;
+  }
+
+  diffTbody.addEventListener("click", function (e) {
+    var tr = e.target.closest("tr.endpoint-row");
+    if (!tr) return;
+    var idx = parseInt(tr.dataset.viewidx, 10);
+    var endpoint = diffState.view[idx];
+    if (!endpoint || endpoint.categoryChanges.length === 0) return;
+
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains("detail-row")) {
+      next.remove();
+      tr.classList.remove("expanded");
+      return;
+    }
+
+    var openDetail = diffTbody.querySelector("tr.detail-row");
+    if (openDetail) {
+      var openTr = openDetail.previousElementSibling;
+      openDetail.remove();
+      if (openTr) openTr.classList.remove("expanded");
+    }
+
+    tr.classList.add("expanded");
+    tr.after(buildDiffDetailRow(endpoint));
+  });
+
+  function scrollToDiffTableTop() {
+    document.getElementById("diffTableControls").scrollIntoView({ block: "start" });
+  }
+
+  diffFirstPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (diffState.page <= 1) return;
+      diffState.page = 1;
+      renderDiffTable();
+      scrollToDiffTableTop();
+    });
+  });
+
+  diffPrevPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (diffState.page <= 1) return;
+      diffState.page -= 1;
+      renderDiffTable();
+      scrollToDiffTableTop();
+    });
+  });
+
+  diffNextPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var totalPages = Math.max(1, Math.ceil(diffState.view.length / PAGE_SIZE));
+      if (diffState.page >= totalPages) return;
+      diffState.page += 1;
+      renderDiffTable();
+      scrollToDiffTableTop();
+    });
+  });
+
+  diffLastPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var totalPages = Math.max(1, Math.ceil(diffState.view.length / PAGE_SIZE));
+      if (diffState.page >= totalPages) return;
+      diffState.page = totalPages;
+      renderDiffTable();
+      scrollToDiffTableTop();
+    });
+  });
+
+  diffSearchInput.addEventListener("input", applyDiffFilters);
+  diffStatusFilter.addEventListener("change", applyDiffFilters);
+  diffSortSelect.addEventListener("change", applyDiffFilters);
+
+  // Recomputes the diff from scratch (or hides the results panel if either
+  // side is missing) – called after every audit run and every
+  // previous-report upload/clear, never patched incrementally.
+  function updateDiff() {
+    if (!diffState.previousReport || state.endpoints.length === 0) {
+      diffResultsEl.hidden = true;
+      diffState.diff = null;
+      return;
+    }
+    var current = buildReportPayload();
+    diffState.diff = SpecAuditEngine.diffReports(diffState.previousReport, current);
+    diffResultsEl.hidden = false;
+    renderDiffSummary(diffState.diff);
+    diffSearchInput.value = "";
+    diffStatusFilter.value = "";
+    diffSortSelect.value = "delta-asc";
+    applyDiffFilters();
+  }
+
+  diffFileInput.addEventListener("change", function () {
+    var file = diffFileInput.files && diffFileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch (e) {
+        showDiffError("This doesn't look like valid JSON. Make sure you're uploading a report exported from this tool's \"Export JSON\" button.");
+        diffFileInput.value = "";
+        return;
+      }
+      var validationError = SpecAuditEngine.validateExportedReport(parsed);
+      if (validationError) {
+        showDiffError(validationError);
+        diffFileInput.value = "";
+        return;
+      }
+      clearDiffError();
+      diffState.previousReport = parsed;
+      diffState.previousFileName = file.name;
+      diffFileStatus.textContent = "Loaded: " + file.name;
+      diffClearBtn.hidden = false;
+      updateDiff();
+    };
+    reader.onerror = function () {
+      showDiffError("Couldn't read this file. Try again.");
+    };
+    reader.readAsText(file);
+  });
+
+  diffClearBtn.addEventListener("click", function () {
+    diffState.previousReport = null;
+    diffState.previousFileName = null;
+    diffFileInput.value = "";
+    diffFileStatus.textContent = "";
+    diffClearBtn.hidden = true;
+    clearDiffError();
+    updateDiff();
+  });
 })();
 </script>
 </body>
