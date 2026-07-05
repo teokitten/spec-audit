@@ -76,6 +76,16 @@
     font-weight: 500;
   }
 
+  /* "Endpoint issues"/"Terminology issues" section headings – clickable to
+     jump to that tab with no filter applied, same accent color-shift already
+     used for other plain-text links in this file (see footer a:hover). */
+  .field-label-clickable {
+    cursor: pointer;
+  }
+  .field-label-clickable:hover {
+    color: var(--accent);
+  }
+
   .section-intro {
     font-size: 14px;
     color: var(--text-secondary);
@@ -318,7 +328,14 @@
     display: none;
   }
 
-  /* Terminology consistency (spec-wide check) */
+  /* Spec-wide checks: terminology + naming convention */
+
+  .terminology-intro {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0 0 18px;
+  }
 
   .terminology-empty {
     font-size: 13px;
@@ -329,6 +346,44 @@
     font-size: 13px;
     color: var(--text-secondary);
     margin-bottom: 18px;
+  }
+
+  .naming-convention-examples-intro {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* One distinct-description block within a terminology item: the quoted
+     text, a label reconciling occurrence count with the list below it, then
+     the actual locations as a real list – three legible lines instead of
+     one run-on sentence. */
+  .terminology-desc-quote {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    margin: 0 0 6px;
+    overflow-wrap: break-word;
+  }
+
+  .terminology-desc-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0 0 4px;
+  }
+
+  .terminology-desc-locations {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .terminology-desc-locations li {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow-wrap: break-word;
   }
 
   .terminology-items {
@@ -600,11 +655,21 @@
 
   .methodology-panel {
     border-top: 1px solid var(--divider);
+    border-bottom: 1px solid var(--divider);
     margin-top: 22px;
+    margin-bottom: 22px;
     padding-top: 22px;
+    padding-bottom: 22px;
   }
   .methodology-panel[hidden] {
     display: none;
+  }
+
+  .methodology-intro {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0 0 14px;
   }
 
   .methodology-panel ul {
@@ -661,6 +726,14 @@
     gap: 12px;
   }
 
+  /* Terminology and naming-convention are two separate spec-wide checks
+     stacked under one "Terminology issues" heading – a little extra space
+     between their two .breakdown containers keeps them visually distinct
+     without a full divider, which would overstate the separation. */
+  .breakdown + .breakdown {
+    margin-top: 20px;
+  }
+
   .breakdown-row {
     display: grid;
     grid-template-columns: 240px 1fr 40px;
@@ -684,6 +757,14 @@
 
   .breakdown-row.active .breakdown-label {
     color: var(--text);
+  }
+
+  .breakdown-row-zero .breakdown-label {
+    color: var(--text-muted);
+  }
+
+  .breakdown-row-zero.active .breakdown-label {
+    color: var(--text-secondary);
   }
 
   .breakdown-label-wrap {
@@ -751,42 +832,11 @@
     color: var(--text-secondary);
   }
 
-  .category-filter-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-secondary);
-    padding: 0 8px 14px;
-  }
-  .category-filter-indicator[hidden] {
-    display: none;
-  }
-
-  .category-filter-indicator strong {
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  .category-filter-indicator button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 1px solid var(--divider);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 13px;
-    line-height: 1;
-    padding: 0;
-    cursor: pointer;
-  }
-
-  .category-filter-indicator button:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+  /* The terminology-tab filter select sits above both spec-wide check cards
+     (not inside either one), since whichever card it targets could itself be
+     hidden while a terminology filter is active. */
+  .terminology-filter-controls {
+    padding-bottom: 14px;
   }
 
   /* Table card */
@@ -895,6 +945,7 @@
     width: 12px;
     height: 12px;
   }
+
   .copy-path-btn.copied {
     color: var(--accent);
   }
@@ -917,6 +968,28 @@
     gap: 3px;
   }
 
+  /* When a category filter is active, an expanded endpoint's issues in the
+     matching category stay at full weight (accent left border, same pattern
+     as .breakdown-row.active) while every other category's issues on the
+     same endpoint fade – still present and readable, just clearly secondary.
+     Scoped to .detail-row so terminology/naming-convention's reuse of
+     .issue elsewhere is unaffected, and neither modifier applies at all when
+     no filter is active. */
+  .detail-row .issue {
+    border-left: 2px solid transparent;
+    padding-left: 8px;
+    margin-left: -8px;
+    transition: opacity 0.15s ease;
+  }
+
+  .detail-row .issue.issue-match {
+    border-left-color: var(--accent);
+  }
+
+  .detail-row .issue.issue-faded {
+    opacity: 0.45;
+  }
+
   .issue-field {
     font-size: 13px;
     font-weight: 600;
@@ -927,6 +1000,7 @@
     font-size: 13px;
     line-height: 1.55;
     color: var(--text-secondary);
+    overflow-wrap: break-word;
   }
 
   .no-issues {
@@ -1110,6 +1184,7 @@
       </div>
 
       <div class="methodology-panel" id="methodologyPanel" hidden>
+        <p class="methodology-intro">Overall score: the average of every endpoint's weighted score. Checks that block a developer completely (missing descriptions, undocumented errors) count twice as much as checks that just slow them down (missing examples, loose constraints, ambiguous required fields).</p>
         <ul>
           <li>A = 90–100</li>
           <li>B = 75–89</li>
@@ -1121,22 +1196,22 @@
         <div class="methodology-limitations">
           <div class="field-label">Known limitations</div>
           <ul>
-            <li>Short descriptions: brief but correct text (e.g. "Not Found") may still get flagged just for being short.</li>
-            <li>Field-name mentions: looks for field names in text – easily confused by lists of allowed values, so off by default.</li>
+            <li>Short descriptions: brief but correct text (e.g. "Not Found," 9 characters) may still get flagged just for being under 10 characters.</li>
+            <li>Field-name mentions: looks for field names in text – easily confused by lists of allowed values, and therefore off by default.</li>
             <li>Same word, different meaning: a term used inconsistently on purpose vs. by mistake isn't always distinguishable.</li>
-            <li>Bottom line: automated guesses, not certainties – use them to guide a review, not replace one.</li>
           </ul>
         </div>
       </div>
 
       <div class="breakdown-section breakdown-section-flush">
-        <div class="field-label">Endpoint issues</div>
+        <div class="field-label field-label-clickable" id="endpointIssuesHeading">Endpoint issues</div>
         <div class="breakdown" id="breakdown"></div>
       </div>
 
       <div class="breakdown-section breakdown-section-spacious">
-        <div class="field-label">Terminology issues</div>
+        <div class="field-label field-label-clickable" id="terminologyIssuesHeading">Terminology issues</div>
         <div class="breakdown" id="terminologyBreakdown"></div>
+        <div class="breakdown" id="namingConventionBreakdown"></div>
       </div>
     </section>
 
@@ -1205,12 +1280,9 @@
       </section>
 
       <section class="card table-card">
-        <div class="category-filter-indicator" id="categoryFilterIndicator" hidden>
-          Filtered by: <strong id="categoryFilterLabel"></strong>
-          <button type="button" id="clearCategoryFilter" aria-label="Clear category filter">&times;</button>
-        </div>
         <div class="table-controls" id="tableControls">
           <input type="text" id="searchInput" placeholder="Filter by path…" />
+          <select id="categoryFilterSelect"></select>
           <select id="gradeFilter">
             <option value="">All grades</option>
             <option value="A">A</option>
@@ -1249,8 +1321,12 @@
     </div>
 
     <div class="report-tab-panel" id="tabPanelTerminology" role="tabpanel" hidden>
-      <section class="card terminology-card">
-        <div class="field-label">Terminology consistency</div>
+      <div class="table-controls terminology-filter-controls">
+        <select id="terminologyFilterSelect"></select>
+      </div>
+
+      <section class="card terminology-card" id="terminologyCard">
+        <p class="terminology-intro">Each entry below is a field or parameter name whose description differs meaningfully depending on where it appears in the spec. The distinct descriptions found and where each one occurs are listed under the name.</p>
         <div class="terminology-summary" id="terminologySummary"></div>
         <div class="table-controls" id="terminologyControls">
           <input type="text" id="terminologySearchInput" placeholder="Filter by field name…" />
@@ -1265,6 +1341,10 @@
         <div class="terminology-items" id="terminologyList"></div>
         <div class="empty-state" id="terminologyEmptyState" hidden>No field names match the current filter.</div>
         <div class="pagination" id="terminologyPaginationBottom" hidden></div>
+      </section>
+
+      <section class="card naming-convention-card" id="namingConventionSection">
+        <div class="naming-convention-detail" id="namingConventionDetail"></div>
       </section>
     </div>
   </section>
@@ -1343,7 +1423,7 @@
     required: "Ambiguous required status",
     semantic: "Semantic inconsistencies",
     unresolvable: "Unresolvable references",
-    "parse-error": "Endpoints that failed to parse"
+    "parse-error": "Endpoints with parsing issues"
   };
   var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "semantic", "unresolvable", "parse-error"];
 
@@ -1378,10 +1458,12 @@
 
   // Spec-wide checks are computed once across the whole document rather than
   // per endpoint, so they're configured and reported separately from
-  // CONFIGURABLE_CATEGORIES/SEMANTIC_SUBCHECKS – see findTerminologyInconsistencies
-  // and auditSpec's `terminologyIssues` result field.
+  // CONFIGURABLE_CATEGORIES/SEMANTIC_SUBCHECKS – see findTerminologyInconsistencies/
+  // detectNamingConventions and auditSpec's `terminologyIssues`/
+  // `namingConventionIssue` result fields.
   var SPEC_WIDE_CHECKS = [
-    { key: "spec-wide-terminology", label: "Inconsistent field descriptions", defaultEnabled: true }
+    { key: "spec-wide-terminology", label: "Inconsistent field descriptions", defaultEnabled: true },
+    { key: "spec-wide-naming-convention", label: "Inconsistent naming convention", defaultEnabled: true }
   ];
   var SPEC_WIDE_CHECK_DEFAULTS = {};
   SPEC_WIDE_CHECKS.forEach(function (s) { SPEC_WIDE_CHECK_DEFAULTS[s.key] = s.defaultEnabled; });
@@ -2030,15 +2112,23 @@
     });
   }
 
-  function findTerminologyInconsistencies(spec) {
-    var occurrencesByKey = {};
-
+  // Shared walk over every parameter name and schema property name in the
+  // spec (parameters on every path/operation, named component schemas, and
+  // inline request/response schemas) – used by both
+  // findTerminologyInconsistencies (which compares descriptions for the same
+  // name) and detectNamingConventions (which only looks at the names
+  // themselves). Returns a flat list of { name, description, location }
+  // entries; description is null when missing, so callers that don't care
+  // about it (naming conventions) don't need to filter around isMissing().
+  function collectFieldOccurrences(spec) {
+    var entries = [];
     function record(name, description, location) {
-      if (!name || isMissing(description)) return;
-      var key = String(name).trim().toLowerCase();
-      if (!key || GENERIC_PROPERTY_NAMES.indexOf(key) !== -1) return;
-      if (!occurrencesByKey[key]) occurrencesByKey[key] = { name: String(name).trim(), entries: [] };
-      occurrencesByKey[key].entries.push({ description: String(description).trim(), location: location });
+      if (!name) return;
+      entries.push({
+        name: String(name).trim(),
+        description: isMissing(description) ? null : String(description).trim(),
+        location: location
+      });
     }
 
     var paths = spec.paths || {};
@@ -2117,6 +2207,19 @@
       });
     });
 
+    return entries;
+  }
+
+  function findTerminologyInconsistencies(spec) {
+    var occurrencesByKey = {};
+    collectFieldOccurrences(spec).forEach(function (e) {
+      if (e.description == null) return;
+      var key = e.name.toLowerCase();
+      if (!key || GENERIC_PROPERTY_NAMES.indexOf(key) !== -1) return;
+      if (!occurrencesByKey[key]) occurrencesByKey[key] = { name: e.name, entries: [] };
+      occurrencesByKey[key].entries.push({ description: e.description, location: e.location });
+    });
+
     // Group -> dedupe by normalized description -> flag if any pair of
     // distinct descriptions falls below the similarity threshold.
     var results = [];
@@ -2159,6 +2262,83 @@
     return results;
   }
 
+  // ---------------------------------------------------------------------
+  // Spec-wide check: naming convention consistency. Same "computed once
+  // across the whole document" shape as the terminology check above –
+  // reported separately (auditSpec's `namingConventionIssue`), not folded
+  // into per-endpoint scoring.
+  // ---------------------------------------------------------------------
+
+  // Classifies a name into one casing bucket. Only names built from letters,
+  // digits, and underscores are considered at all – anything else (kebab-
+  // case, dotted names) goes straight to "other" since it can't be snake or
+  // camel by definition. "camelCase" requires the name to start with a
+  // lowercase letter specifically so PascalCase (e.g. "UserId") lands in
+  // "other" instead of being folded into camelCase – they're different
+  // conventions even though both use internal capitals. Single-word,
+  // all-lowercase names ("id", "status") go to "lowercase": they don't
+  // distinguish snake_case from camelCase (there's no word boundary to mark
+  // either way), so they're neutral rather than evidence of either style.
+  function classifyNamingConvention(rawName) {
+    var name = String(rawName || "").trim();
+    if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return "other";
+    var hasUnderscore = name.indexOf("_") !== -1;
+    var hasUpper = /[A-Z]/.test(name);
+    if (hasUnderscore) return hasUpper ? "other" : "snake_case";
+    if (!hasUpper) return "lowercase";
+    return /^[a-z]/.test(name) ? "camelCase" : "other";
+  }
+
+  // Below this many occurrences, a minority casing style reads as noise (a
+  // handful of names borrowed verbatim from an external API, a couple of
+  // typos) rather than a genuine spec-wide inconsistency worth flagging –
+  // same order of magnitude as this file's other minimum-occurrence
+  // thresholds (see MAX_DISTINCT_DESCRIPTIONS_TO_FLAG above).
+  var NAMING_CONVENTION_MIN_OCCURRENCES = 5;
+  var NAMING_CONVENTION_MAX_EXAMPLES = 10;
+
+  function detectNamingConventions(spec) {
+    var buckets = { snake_case: [], camelCase: [], other: [], lowercase: [] };
+    collectFieldOccurrences(spec).forEach(function (e) {
+      buckets[classifyNamingConvention(e.name)].push(e);
+    });
+
+    var snakeCount = buckets.snake_case.length;
+    var camelCount = buckets.camelCase.length;
+    if (snakeCount < NAMING_CONVENTION_MIN_OCCURRENCES || camelCount < NAMING_CONVENTION_MIN_OCCURRENCES) {
+      return null;
+    }
+
+    var dominantKey = snakeCount >= camelCount ? "snake_case" : "camelCase";
+    var minorityKey = dominantKey === "snake_case" ? "camelCase" : "snake_case";
+    var minorityEntries = buckets[minorityKey];
+
+    // One example location per distinct minority name, capped at 10 names –
+    // a name repeated across dozens of endpoints would otherwise crowd out
+    // other offending names without adding new information.
+    var examplesByName = {};
+    var exampleOrder = [];
+    minorityEntries.forEach(function (e) {
+      if (!examplesByName[e.name]) {
+        examplesByName[e.name] = e.location;
+        exampleOrder.push(e.name);
+      }
+    });
+
+    return {
+      counts: { snakeCase: snakeCount, camelCase: camelCount, other: buckets.other.length, lowercase: buckets.lowercase.length },
+      dominant: { convention: dominantKey, count: buckets[dominantKey].length },
+      minority: {
+        convention: minorityKey,
+        count: minorityEntries.length,
+        distinctCount: exampleOrder.length,
+        examples: exampleOrder.slice(0, NAMING_CONVENTION_MAX_EXAMPLES).map(function (name) {
+          return { name: name, location: examplesByName[name] };
+        })
+      }
+    };
+  }
+
   function gradeFor(score) {
     if (score >= 90) return "A";
     if (score >= 75) return "B";
@@ -2174,7 +2354,7 @@
   // scored" lives entirely in the engine, and rendering only ever displays
   // numbers it's handed.
   // ---------------------------------------------------------------------
-  function summarize(endpoints) {
+  function summarize(endpoints, enabledCategories) {
     var overallScore = endpoints.length
       ? Math.round(endpoints.reduce(function (s, e) { return s + e.score; }, 0) / endpoints.length)
       : 0;
@@ -2188,9 +2368,28 @@
       });
     });
 
-    var categoryBreakdown = CATEGORY_ORDER.filter(function (c) { return byCategory[c]; })
-      .map(function (c) { return { category: c, label: CATEGORY_LABELS[c] || c, count: byCategory[c] }; })
-      .sort(function (a, b) { return b.count - a.count; });
+    // A category is shown even at a count of 0 as long as it actually ran,
+    // so a clean result ("ran, found nothing") is never confused with a
+    // disabled check ("didn't run at all"). "unresolvable" and "parse-error"
+    // aren't configurable, so they always ran; "semantic" ran if at least one
+    // of its sub-checks was enabled; everything else in CONFIGURABLE_CATEGORIES
+    // ran only if explicitly (or by default) enabled.
+    function categoryRan(c) {
+      if (c === "unresolvable" || c === "parse-error") return true;
+      if (c === "semantic") {
+        return !enabledCategories || SEMANTIC_SUBCHECKS.some(function (s) { return enabledCategories.has(s.key); });
+      }
+      return !enabledCategories || enabledCategories.has(c);
+    }
+
+    var categoryBreakdown = CATEGORY_ORDER.filter(categoryRan)
+      .map(function (c) { return { category: c, label: CATEGORY_LABELS[c] || c, count: byCategory[c] || 0 }; })
+      .sort(function (a, b) {
+        if (a.count === 0 && b.count === 0) return a.label.localeCompare(b.label);
+        if (a.count === 0) return 1;
+        if (b.count === 0) return -1;
+        return b.count - a.count;
+      });
 
     return {
       overallScore: overallScore,
@@ -2353,7 +2552,7 @@
         stage: "extract"
       };
     }
-    var summary = summarize(endpoints);
+    var summary = summarize(endpoints, enabledCategories);
     // Spec-wide, not owned by any endpoint – gated the same way the
     // semantic sub-checks are: an explicit Set decides, an omitted Set
     // falls back to this check's own default (on).
@@ -2361,13 +2560,18 @@
       ? enabledCategories.has("spec-wide-terminology")
       : SPEC_WIDE_CHECK_DEFAULTS["spec-wide-terminology"];
     var terminologyIssues = terminologyEnabled ? findTerminologyInconsistencies(parsed.spec) : [];
+    var namingConventionEnabled = enabledCategories
+      ? enabledCategories.has("spec-wide-naming-convention")
+      : SPEC_WIDE_CHECK_DEFAULTS["spec-wide-naming-convention"];
+    var namingConventionIssue = namingConventionEnabled ? detectNamingConventions(parsed.spec) : null;
     return {
       endpoints: endpoints,
       overallScore: summary.overallScore,
       overallGrade: summary.overallGrade,
       totalIssues: summary.totalIssues,
       categoryBreakdown: summary.categoryBreakdown,
-      terminologyIssues: terminologyIssues
+      terminologyIssues: terminologyIssues,
+      namingConventionIssue: namingConventionIssue
     };
   }
 
@@ -2385,6 +2589,9 @@
     validateSpec: validateSpec,
     extractEndpoints: extractEndpoints,
     findTerminologyInconsistencies: findTerminologyInconsistencies,
+    detectNamingConventions: detectNamingConventions,
+    classifyNamingConvention: classifyNamingConvention,
+    collectFieldOccurrences: collectFieldOccurrences,
     gradeFor: gradeFor,
     summarize: summarize,
     validateExportedReport: validateExportedReport,
@@ -2407,13 +2614,15 @@
   // rather than freshly authored, so the explanation never drifts from what the
   // check actually flags. Shown in a click-to-expand panel below each breakdown row.
   var CATEGORY_EXPLANATIONS = {
-    description: "An endpoint or parameter has no summary/description – a developer has no way to tell what it does or what values it accepts without reading the source.",
-    "low-quality": "The description just restates the parameter name in words, adding no information a developer couldn't already guess from the name itself.",
-    examples: "The request body or primary success response has no example payload, so a developer has to guess the shape of a valid request or response instead of copying a working sample.",
-    errors: "A 2xx-only endpoint has no error responses documented at all, or a documented error response has no meaningful description of when it occurs.",
-    constraints: "A string parameter whose name implies a fixed value set has no enum/format/length limit, or a numeric parameter has no minimum/maximum.",
-    required: "Whether a parameter is required isn't explicitly stated, so a developer has to assume it's optional, which may be wrong and cause failed requests.",
-    semantic: "A description implies a different type than the schema declares, references a field name that doesn't exist on this endpoint, or doesn't mention any of the parameter's fixed enum values."
+    description: "Checks whether every endpoint and parameter has a description of at least 10 characters – catches both missing descriptions and placeholder text like \"id\" or \"the id\".",
+    "low-quality": "Checks whether a parameter's description just reword the parameter name (e.g. name `user_id`, description \"The user ID\") without adding new information.",
+    examples: "Checks whether request bodies and primary success responses include an example value, so a developer can see what a real payload looks like.",
+    errors: "Checks whether endpoints with success responses also document error responses, and whether those error responses explain when they occur and what the error body looks like.",
+    constraints: "Checks whether string parameters whose names imply a fixed value set (e.g. status, type, state) have an enum, format, or length limit, and whether numeric parameters have a minimum or maximum.",
+    required: "Checks whether every parameter explicitly states if it's required or optional, since an unset value could be misread either way.",
+    semantic: "Checks whether a parameter's description contradicts its declared type or enum values, or references a field name that doesn't exist elsewhere on the endpoint.",
+    unresolvable: "Checks whether every $ref in the spec actually resolves to something, flagging references that point to missing or renamed components.",
+    "parse-error": "Checks whether an endpoint's definition could be fully processed – flags endpoints with something unexpected in their structure that prevented the other checks from running."
   };
 
   var ICON_INFO_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
@@ -2457,6 +2666,7 @@
   var issueCountEl = document.getElementById("issueCount");
   var breakdownEl = document.getElementById("breakdown");
   var terminologyBreakdownEl = document.getElementById("terminologyBreakdown");
+  var namingConventionBreakdownEl = document.getElementById("namingConventionBreakdown");
   var methodologyToggle = document.getElementById("methodologyToggle");
   var methodologyPanel = document.getElementById("methodologyPanel");
   var exportJsonBtn = document.getElementById("exportJsonBtn");
@@ -2468,6 +2678,12 @@
   var terminologyResultCount = document.getElementById("terminologyResultCount");
   var terminologyListEl = document.getElementById("terminologyList");
   var terminologyEmptyState = document.getElementById("terminologyEmptyState");
+  var namingConventionSectionEl = document.getElementById("namingConventionSection");
+  var namingConventionDetailEl = document.getElementById("namingConventionDetail");
+  var terminologyCardEl = document.getElementById("terminologyCard");
+  var terminologyFilterSelect = document.getElementById("terminologyFilterSelect");
+  var endpointIssuesHeading = document.getElementById("endpointIssuesHeading");
+  var terminologyIssuesHeading = document.getElementById("terminologyIssuesHeading");
 
   var searchInput = document.getElementById("searchInput");
   var gradeFilter = document.getElementById("gradeFilter");
@@ -2475,9 +2691,7 @@
   var resultCount = document.getElementById("resultCount");
   var endpointTbody = document.getElementById("endpointTbody");
   var emptyState = document.getElementById("emptyState");
-  var categoryFilterIndicator = document.getElementById("categoryFilterIndicator");
-  var categoryFilterLabel = document.getElementById("categoryFilterLabel");
-  var clearCategoryFilterBtn = document.getElementById("clearCategoryFilter");
+  var categoryFilterSelect = document.getElementById("categoryFilterSelect");
   var tableControls = document.getElementById("tableControls");
 
   var diffFileInput = document.getElementById("diffFileInput");
@@ -2586,7 +2800,13 @@
     ),
     terminologyIssues: [],
     terminologyView: [],
-    terminologyPage: 1
+    terminologyPage: 1,
+    namingConventionIssue: null,
+    // Which of the two spec-wide check sections is highlighted within the
+    // Terminology issues tab – "field-descriptions", "naming-convention", or
+    // null. Separate from state.categoryFilter (Endpoint issues tab only);
+    // the two are never merged since they filter different tabs/sections.
+    terminologyFilter: null
   };
 
   var diffState = {
@@ -2625,6 +2845,20 @@
   configSpecWideCheckboxes.innerHTML = SpecAuditEngine.SPEC_WIDE_CHECKS.map(function (s) {
     return '<label class="config-checkbox"><input type="checkbox" data-category="' + s.key + '"' + (s.defaultEnabled ? " checked" : "") + ' /> ' + esc(s.label) + '</label>';
   }).join("");
+
+  // "Filter by issue" dropdowns – replace the old text-only "Filtered by: X ×"
+  // indicators with a real, two-way-synced control: selecting an option here
+  // calls the exact same setCategoryFilter()/setTerminologyFilter() functions
+  // a row click does, and a row click updates the select's value to match.
+  categoryFilterSelect.innerHTML = '<option value="">All issues</option>' +
+    SpecAuditEngine.CATEGORY_ORDER.map(function (c) {
+      return '<option value="' + esc(c) + '">' + esc(SpecAuditEngine.CATEGORY_LABELS[c] || c) + '</option>';
+    }).join("");
+
+  terminologyFilterSelect.innerHTML =
+    '<option value="">All terminology issues</option>' +
+    '<option value="field-descriptions">Inconsistent field descriptions</option>' +
+    '<option value="naming-convention">Inconsistent naming convention</option>';
 
   configToggle.addEventListener("click", function () {
     var expanded = configToggle.getAttribute("aria-expanded") === "true";
@@ -2689,7 +2923,7 @@
   // Rendering
   // ---------------------------------------------------------------------
   function renderSummary(endpoints) {
-    var summary = SpecAuditEngine.summarize(endpoints);
+    var summary = SpecAuditEngine.summarize(endpoints, state.enabledCategories);
 
     gradeBadge.textContent = summary.overallGrade;
     scoreNum.textContent = summary.overallScore;
@@ -2698,14 +2932,9 @@
 
     var rows = summary.categoryBreakdown;
 
-    if (rows.length === 0) {
-      breakdownEl.innerHTML = '<div class="breakdown-empty">No issues found – every check passed.</div>';
-      return;
-    }
-
-    var max = rows[0].count;
+    var max = rows[0].count || 1;
     breakdownEl.innerHTML = rows.map(function (r) {
-      var pct = Math.max(4, Math.round((r.count / max) * 100));
+      var pct = r.count === 0 ? 0 : Math.max(4, Math.round((r.count / max) * 100));
       var color = "var(--accent)";
       var explanation = CATEGORY_EXPLANATIONS[r.category];
       var isActive = state.categoryFilter === r.category;
@@ -2713,7 +2942,7 @@
       var infoHtml = explanation
         ? '<button type="button" class="info-btn cat-info-btn" data-category="' + esc(r.category) + '" aria-expanded="false" aria-controls="' + explainId + '" aria-label="What this checks">' + ICON_INFO_SVG + '</button>'
         : '';
-      var row = '<div class="breakdown-row' + (isActive ? ' active' : '') + '" data-category="' + esc(r.category) + '">' +
+      var row = '<div class="breakdown-row' + (isActive ? ' active' : '') + (r.count === 0 ? ' breakdown-row-zero' : '') + '" data-category="' + esc(r.category) + '">' +
         '<span class="breakdown-label-wrap">' +
         '<span class="breakdown-label">' + buildLabelHtml(r.label, infoHtml) + '</span>' +
         '</span>' +
@@ -2737,6 +2966,22 @@
   // of always taking up space.
   var TERMINOLOGY_EXPLANATION = "Checks whether the same parameter or property name is described consistently everywhere it appears in the spec – a spec-wide comparison, not tied to any one endpoint, so it doesn't affect endpoint scores.";
 
+  // Terminology and naming-convention are rendered by two independent
+  // functions (each can be disabled/clean/flagged on its own), so unlike the
+  // endpoint category breakdown there's no single `rows` array to read a
+  // shared max off of – this computes the same "highest count = 100%,
+  // everything else scaled relative to it" max the two bars need to agree
+  // on, from current state directly. A check that's disabled or has nothing
+  // to report doesn't count toward the max (it never renders a bar at all,
+  // it renders one of the empty-state messages above instead).
+  function specWideMaxCount() {
+    var termCount = state.enabledCategories.has("spec-wide-terminology") ? state.terminologyIssues.length : 0;
+    var namingCount = (state.enabledCategories.has("spec-wide-naming-convention") && state.namingConventionIssue)
+      ? state.namingConventionIssue.minority.count
+      : 0;
+    return Math.max(termCount, namingCount) || 1;
+  }
+
   function renderTerminologyBreakdown() {
     var enabled = state.enabledCategories.has("spec-wide-terminology");
     if (!enabled) {
@@ -2748,20 +2993,22 @@
       terminologyBreakdownEl.innerHTML = '<div class="breakdown-empty">No terminology inconsistencies found.</div>';
       return;
     }
+    var pct = Math.max(4, Math.round((count / specWideMaxCount()) * 100));
     var infoHtml = '<button type="button" class="info-btn cat-info-btn" data-category="terminology" aria-expanded="false" aria-controls="explain-terminology" aria-label="What this checks">' + ICON_INFO_SVG + '</button>';
     terminologyBreakdownEl.innerHTML =
       '<div class="breakdown-row">' +
       '<span class="breakdown-label-wrap"><span class="breakdown-label">' + buildLabelHtml("Inconsistent field descriptions", infoHtml) + '</span></span>' +
-      '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:100%;background:var(--accent)"></span></span>' +
+      '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:' + pct + '%;background:var(--accent)"></span></span>' +
       '<span class="breakdown-count">' + count + '</span>' +
       '</div>' +
       '<div class="breakdown-explain" id="explain-terminology" hidden><p>' + esc(TERMINOLOGY_EXPLANATION) + '</p></div>';
   }
 
-  // Clicking the terminology summary jumps to the Terminology issues tab –
-  // the "filter" analog of clicking a category breakdown row, just without a
-  // specific sub-filter to apply since this summary is a single aggregate.
-  // The info icon reuses toggleBreakdownExplain exactly as the category
+  // Clicking either spec-wide summary row jumps to the Terminology issues
+  // tab and scrolls to that check's own section within it – the "filter"
+  // analog of clicking a category breakdown row, just without a specific
+  // sub-filter to apply since each summary here is a single aggregate. The
+  // info icon reuses toggleBreakdownExplain exactly as the category
   // breakdown does, so it's checked first and short-circuits the tab jump.
   terminologyBreakdownEl.addEventListener("click", function (e) {
     var infoBtn = e.target.closest(".cat-info-btn");
@@ -2771,9 +3018,95 @@
       return;
     }
     if (!e.target.closest(".breakdown-row")) return;
+    setTerminologyFilter("field-descriptions");
     activateTab("terminology-issues");
     tabPanelTerminology.scrollIntoView({ block: "start" });
   });
+
+  var NAMING_CONVENTION_EXPLANATION = "Checks whether parameter and property names consistently use the same casing style (snake_case vs. camelCase) throughout the spec.";
+
+  // Same minimal row shape as every other breakdown row (label, bar, count,
+  // info icon) – the dominant/minority split and example names are NOT
+  // rendered here. They used to sit inline right below this row, always
+  // visible with no click required, which looked identical to (and was
+  // mistaken for) the info icon's "what this checks" panel stuck open. That
+  // detail now lives in its own section in the Terminology issues tab (see
+  // renderNamingConventionDetail below), which is also what clicking this
+  // row scrolls to.
+  function renderNamingConventionBreakdown() {
+    var enabled = state.enabledCategories.has("spec-wide-naming-convention");
+    if (!enabled) {
+      namingConventionBreakdownEl.innerHTML = '<div class="breakdown-empty">This check is currently disabled.</div>';
+      return;
+    }
+    var issue = state.namingConventionIssue;
+    var count = issue ? issue.minority.count : 0;
+    // A clean result ("ran, found nothing") renders as a normal 0-count row –
+    // same treatment as a 0-count Endpoint issues category (flat bar, muted
+    // label, still clickable) – rather than an explanatory-text empty state,
+    // which is reserved for "this check didn't run at all" (see the
+    // !enabled branch above).
+    var pct = count === 0 ? 0 : Math.max(4, Math.round((count / specWideMaxCount()) * 100));
+    var infoHtml = '<button type="button" class="info-btn cat-info-btn" data-category="naming-convention" aria-expanded="false" aria-controls="explain-naming-convention" aria-label="What this checks">' + ICON_INFO_SVG + '</button>';
+    namingConventionBreakdownEl.innerHTML =
+      '<div class="breakdown-row' + (count === 0 ? ' breakdown-row-zero' : '') + '">' +
+      '<span class="breakdown-label-wrap"><span class="breakdown-label">' + buildLabelHtml("Inconsistent naming convention", infoHtml) + '</span></span>' +
+      '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:' + pct + '%;background:var(--accent)"></span></span>' +
+      '<span class="breakdown-count">' + count + '</span>' +
+      '</div>' +
+      '<div class="breakdown-explain" id="explain-naming-convention" hidden><p>' + esc(NAMING_CONVENTION_EXPLANATION) + '</p></div>';
+  }
+
+  namingConventionBreakdownEl.addEventListener("click", function (e) {
+    var infoBtn = e.target.closest(".cat-info-btn");
+    if (infoBtn) {
+      e.stopPropagation();
+      toggleBreakdownExplain(infoBtn);
+      return;
+    }
+    if (!e.target.closest(".breakdown-row")) return;
+    setTerminologyFilter("naming-convention");
+    activateTab("terminology-issues");
+    namingConventionSectionEl.scrollIntoView({ block: "start" });
+  });
+
+  // The dominant/minority split and example names, shown in their own card
+  // in the Terminology issues tab rather than inline in the summary card
+  // (see renderNamingConventionBreakdown above for why). The intro line
+  // above the example list names the actual minority convention for this
+  // spec – it's whichever of snake_case/camelCase lost, not hardcoded to
+  // either, since either can be the minority depending on the spec.
+  function renderNamingConventionDetail() {
+    var enabled = state.enabledCategories.has("spec-wide-naming-convention");
+    if (!enabled) {
+      namingConventionDetailEl.innerHTML = '<div class="terminology-empty">This check is currently disabled.</div>';
+      return;
+    }
+    var issue = state.namingConventionIssue;
+    if (!issue) {
+      namingConventionDetailEl.innerHTML = '<div class="terminology-empty">No naming convention issues found.</div>';
+      return;
+    }
+    var distinctCount = issue.minority.distinctCount;
+    var occurrenceCount = issue.minority.count;
+    var shownCount = issue.minority.examples.length;
+    var isSingularName = distinctCount === 1;
+    var isSingularOccurrence = occurrenceCount === 1;
+    var cappedNote = shownCount < distinctCount ? ' (showing the first ' + shownCount + ')' : '';
+    var combinedNote = isSingularName ? '' : ' combined';
+    var factSentence = 'This spec is dominantly ' + issue.dominant.convention + '. ' +
+      (isSingularName ? 'This ' : 'These ') + distinctCount + ' name' + (isSingularName ? '' : 's') + cappedNote + ' ' +
+      (isSingularName ? 'appears' : 'appear') + ' ' + occurrenceCount + ' time' + (isSingularOccurrence ? '' : 's') + combinedNote +
+      ' using ' + issue.minority.convention + ' instead.';
+    var actionSentence = 'Consider renaming ' + (isSingularName ? 'it' : 'them') + ' for consistency.';
+    var examplesHtml = issue.minority.examples.map(function (ex) {
+      return '<div class="issue"><span class="issue-field">' + esc(ex.name) + '</span><span class="issue-msg">' + esc(ex.location) + '</span></div>';
+    }).join('');
+    namingConventionDetailEl.innerHTML =
+      '<p class="terminology-summary-line">' + esc(factSentence) + '</p>' +
+      '<p class="terminology-summary-line">' + esc(actionSentence) + '</p>' +
+      '<div class="issue-list">' + examplesHtml + '</div>';
+  }
 
   // Total occurrences across all of a flagged name's distinct descriptions –
   // used as the default sort key, since it's not stored as its own field.
@@ -2838,11 +3171,12 @@
     }
 
     terminologyControlsEl.hidden = false;
-    terminologySummaryEl.innerHTML = '<div class="terminology-summary-line">' + allIssues.length +
-      ' field name' + (allIssues.length === 1 ? "" : "s") + ' with inconsistent descriptions across the spec.</div>';
+    terminologySummaryEl.innerHTML = "";
 
     var view = state.terminologyView;
-    terminologyResultCount.textContent = view.length + " of " + allIssues.length + " field names";
+    terminologyResultCount.textContent = view.length === allIssues.length
+      ? allIssues.length + " flagged field names in the whole spec"
+      : view.length + " of " + allIssues.length + " flagged field names";
     terminologyEmptyState.hidden = view.length !== 0;
     terminologyPaginationContainers.forEach(function (el) { el.hidden = view.length === 0; });
 
@@ -2855,10 +3189,12 @@
 
     terminologyListEl.innerHTML = pageItems.map(function (item) {
       var descHtml = item.descriptions.map(function (d) {
-        var examples = d.locations.map(function (loc) { return esc(loc); }).join(", ");
+        var locationsHtml = d.locations.map(function (loc) { return "<li>" + esc(loc) + "</li>"; }).join("");
+        var timesLabel = "Occurs " + d.occurrenceCount + (d.occurrenceCount === 1 ? " time" : " times") + ", for example:";
         return '<div class="issue">' +
-          '<span class="issue-field">' + d.occurrenceCount + (d.occurrenceCount === 1 ? " occurrence" : " occurrences") + '</span>' +
-          '<span class="issue-msg">“' + esc(d.text) + '” – e.g. ' + examples + '</span>' +
+          '<p class="terminology-desc-quote">“' + esc(d.text) + '”</p>' +
+          '<p class="terminology-desc-meta">' + esc(timesLabel) + '</p>' +
+          '<ul class="terminology-desc-locations">' + locationsHtml + '</ul>' +
           '</div>';
       }).join("");
       return '<div class="terminology-item">' +
@@ -2969,13 +3305,11 @@
     });
   }
 
+  // Keeps categoryFilterSelect's value in sync with state.categoryFilter,
+  // regardless of whether the change came from the select itself or from
+  // clicking a breakdown row – two-way sync, one source of truth.
   function updateCategoryFilterIndicator() {
-    if (state.categoryFilter) {
-      categoryFilterIndicator.hidden = false;
-      categoryFilterLabel.textContent = SpecAuditEngine.CATEGORY_LABELS[state.categoryFilter] || state.categoryFilter;
-    } else {
-      categoryFilterIndicator.hidden = true;
-    }
+    categoryFilterSelect.value = state.categoryFilter || "";
   }
 
   function setCategoryFilter(category) {
@@ -2983,6 +3317,31 @@
     updateBreakdownActiveStates();
     updateCategoryFilterIndicator();
     applyFilters();
+  }
+
+  // Parallel to setCategoryFilter/updateCategoryFilterIndicator above, but
+  // for the Terminology issues tab's two spec-wide checks – a completely
+  // separate filter state (state.terminologyFilter) from state.categoryFilter,
+  // since they apply to different tabs. Syncs terminologyFilterSelect's value
+  // and hides the OTHER spec-wide card entirely (same hidden-attribute
+  // show/hide used everywhere else in this file for filtering – not
+  // opacity), so only the selected check's content is shown.
+  function updateTerminologyFilterIndicator() {
+    var filter = state.terminologyFilter;
+    terminologyFilterSelect.value = filter || "";
+
+    var termRow = terminologyBreakdownEl.querySelector(".breakdown-row");
+    var namingRow = namingConventionBreakdownEl.querySelector(".breakdown-row");
+    if (termRow) termRow.classList.toggle("active", filter === "field-descriptions");
+    if (namingRow) namingRow.classList.toggle("active", filter === "naming-convention");
+
+    if (terminologyCardEl) terminologyCardEl.hidden = filter === "naming-convention";
+    namingConventionSectionEl.hidden = filter === "field-descriptions";
+  }
+
+  function setTerminologyFilter(filter) {
+    state.terminologyFilter = state.terminologyFilter === filter ? null : filter;
+    updateTerminologyFilterIndicator();
   }
 
   function currentFilters() {
@@ -3074,6 +3433,9 @@
       endpoint.issues.forEach(function (issue) {
         var row = document.createElement("div");
         row.className = "issue";
+        if (state.categoryFilter) {
+          row.className += issue.category === state.categoryFilter ? " issue-match" : " issue-faded";
+        }
         var field = document.createElement("span");
         field.className = "issue-field";
         field.textContent = issue.field;
@@ -3143,6 +3505,19 @@
   gradeFilter.addEventListener("change", applyFilters);
   sortSelect.addEventListener("change", applyFilters);
 
+  // setCategoryFilter/setTerminologyFilter only "toggle off" when re-applying
+  // the SAME value, which a <select> never does on its own (the browser only
+  // fires "change" on an actual value transition) – so wiring straight to
+  // these shared functions is safe and keeps row clicks and dropdown
+  // selection as two inputs to the exact same state, not two code paths.
+  categoryFilterSelect.addEventListener("change", function () {
+    setCategoryFilter(categoryFilterSelect.value || null);
+  });
+
+  terminologyFilterSelect.addEventListener("change", function () {
+    setTerminologyFilter(terminologyFilterSelect.value || null);
+  });
+
   terminologySearchInput.addEventListener("input", applyTerminologyFilters);
   terminologySortSelect.addEventListener("change", applyTerminologyFilters);
 
@@ -3163,13 +3538,38 @@
     if (!row) return;
     activateTab("endpoint-issues");
     setCategoryFilter(row.dataset.category);
+    tabPanelEndpoints.scrollIntoView({ block: "start" });
   });
 
-  clearCategoryFilterBtn.addEventListener("click", function () {
+  // Used by clicking the "Endpoint issues" heading (see below) to mean "show
+  // everything in this tab, unfiltered" – also resets categoryFilterSelect
+  // back to "All issues" via updateCategoryFilterIndicator().
+  function clearCategoryFilter() {
     state.categoryFilter = null;
     updateBreakdownActiveStates();
     updateCategoryFilterIndicator();
     applyFilters();
+  }
+
+  // Used by clicking the "Terminology issues" heading (see below).
+  function clearTerminologyFilter() {
+    state.terminologyFilter = null;
+    updateTerminologyFilterIndicator();
+  }
+
+  // Clicking either section heading jumps to its tab with no filter applied
+  // – distinct from clicking a row inside the section, which still filters
+  // to that specific category/check as before.
+  endpointIssuesHeading.addEventListener("click", function () {
+    activateTab("endpoint-issues");
+    clearCategoryFilter();
+    tabPanelEndpoints.scrollIntoView({ block: "start" });
+  });
+
+  terminologyIssuesHeading.addEventListener("click", function () {
+    activateTab("terminology-issues");
+    clearTerminologyFilter();
+    tabPanelTerminology.scrollIntoView({ block: "start" });
   });
 
   function scrollToTableTop() {
@@ -3255,17 +3655,24 @@
             }
             state.endpoints = endpoints;
             state.categoryFilter = null;
+            state.terminologyFilter = null;
             state.specSource = state.specSource || "Pasted directly";
             state.terminologyIssues = state.enabledCategories.has("spec-wide-terminology")
               ? SpecAuditEngine.findTerminologyInconsistencies(parsed.spec)
               : [];
+            state.namingConventionIssue = state.enabledCategories.has("spec-wide-naming-convention")
+              ? SpecAuditEngine.detectNamingConventions(parsed.spec)
+              : null;
             state.terminologyPage = 1;
             renderSummary(endpoints);
             renderTerminologyBreakdown();
+            renderNamingConventionBreakdown();
+            renderNamingConventionDetail();
             terminologySearchInput.value = "";
             terminologySortSelect.value = "occurrences-desc";
             applyTerminologyFilters();
             updateCategoryFilterIndicator();
+            updateTerminologyFilterIndicator();
             searchInput.value = "";
             gradeFilter.value = "";
             sortSelect.value = "score-asc";
@@ -3421,7 +3828,7 @@
   // for what a report object looks like. `terminologyIssues` rides along
   // separately from `endpoints` since it's spec-wide, not per-endpoint.
   function buildReportPayload() {
-    var summary = SpecAuditEngine.summarize(state.endpoints);
+    var summary = SpecAuditEngine.summarize(state.endpoints, state.enabledCategories);
     return {
       overallScore: summary.overallScore,
       overallGrade: summary.overallGrade,
@@ -3429,6 +3836,7 @@
       categoryBreakdown: summary.categoryBreakdown,
       disabledChecks: computeDisabledChecks(),
       terminologyIssues: state.terminologyIssues,
+      namingConventionIssue: state.namingConventionIssue,
       endpoints: state.endpoints.map(function (e) {
         return {
           path: e.path,
@@ -3448,7 +3856,7 @@
   }
 
   function buildStandaloneReportHtml() {
-    var summary = SpecAuditEngine.summarize(state.endpoints);
+    var summary = SpecAuditEngine.summarize(state.endpoints, state.enabledCategories);
     var endpoints = sortedEndpointsForExport();
     var sourceLabel = state.specSource || "Pasted directly";
     var exportedAt = new Date().toString();
@@ -3457,13 +3865,11 @@
       ? "All checks enabled"
       : "Checks disabled for this report: " + disabled.map(function (c) { return c.label; }).join(", ");
 
-    var breakdownHtml = summary.categoryBreakdown.length === 0
-      ? '<div class="breakdown-empty">No issues found – every check passed.</div>'
-      : (function () {
-          var max = summary.categoryBreakdown[0].count;
+    var breakdownHtml = (function () {
+          var max = summary.categoryBreakdown[0].count || 1;
           return summary.categoryBreakdown.map(function (r) {
-            var pct = Math.max(4, Math.round((r.count / max) * 100));
-            return '<div class="breakdown-row">' +
+            var pct = r.count === 0 ? 0 : Math.max(4, Math.round((r.count / max) * 100));
+            return '<div class="breakdown-row' + (r.count === 0 ? ' breakdown-row-zero' : '') + '">' +
               '<span class="breakdown-label">' + esc(r.label) + '</span>' +
               '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:' + pct + '%"></span></span>' +
               '<span class="breakdown-count">' + r.count + '</span>' +
@@ -3479,15 +3885,18 @@
     } else if (terminologyIssues.length === 0) {
       terminologyHtml = '<div class="terminology-empty">No terminology inconsistencies found.</div>';
     } else {
-      terminologyHtml = '<div class="terminology-summary-line">' + terminologyIssues.length + ' field name' +
+      terminologyHtml = '<p class="terminology-intro">Each entry below is a field or parameter name whose description differs meaningfully depending on where it appears in the spec. The distinct descriptions found and where each one occurs are listed under the name.</p>' +
+        '<div class="terminology-summary-line">' + terminologyIssues.length + ' field name' +
         (terminologyIssues.length === 1 ? "" : "s") + ' with inconsistent descriptions across the spec.</div>' +
         '<div class="terminology-items">' +
         terminologyIssues.map(function (item) {
           var descHtml = item.descriptions.map(function (d) {
-            var examples = d.locations.map(function (loc) { return esc(loc); }).join(", ");
+            var locationsHtml = d.locations.map(function (loc) { return "<li>" + esc(loc) + "</li>"; }).join("");
+            var timesLabel = "Occurs " + d.occurrenceCount + (d.occurrenceCount === 1 ? " time" : " times") + ", for example:";
             return '<div class="issue">' +
-              '<span class="issue-field">' + d.occurrenceCount + (d.occurrenceCount === 1 ? " occurrence" : " occurrences") + '</span>' +
-              '<span class="issue-msg">&ldquo;' + esc(d.text) + '&rdquo; &ndash; e.g. ' + examples + '</span>' +
+              '<p class="terminology-desc-quote">&ldquo;' + esc(d.text) + '&rdquo;</p>' +
+              '<p class="terminology-desc-meta">' + esc(timesLabel) + '</p>' +
+              '<ul class="terminology-desc-locations">' + locationsHtml + '</ul>' +
               '</div>';
           }).join("");
           return '<div class="terminology-item">' +
@@ -3499,6 +3908,33 @@
             '</div>';
         }).join("") +
         '</div>';
+    }
+
+    var namingConventionIssue = state.namingConventionIssue;
+    var namingConventionEnabled = state.enabledCategories.has("spec-wide-naming-convention");
+    var namingConventionHtml;
+    if (!namingConventionEnabled) {
+      namingConventionHtml = '<div class="terminology-empty">This check is currently disabled.</div>';
+    } else if (!namingConventionIssue) {
+      namingConventionHtml = '<div class="terminology-empty">No naming convention issues found.</div>';
+    } else {
+      var namingDistinctCount = namingConventionIssue.minority.distinctCount;
+      var namingOccurrenceCount = namingConventionIssue.minority.count;
+      var namingShownCount = namingConventionIssue.minority.examples.length;
+      var namingIsSingularName = namingDistinctCount === 1;
+      var namingIsSingularOccurrence = namingOccurrenceCount === 1;
+      var namingCappedNote = namingShownCount < namingDistinctCount ? ' (showing the first ' + namingShownCount + ')' : '';
+      var namingCombinedNote = namingIsSingularName ? '' : ' combined';
+      var namingFactSentence = 'This spec is dominantly ' + namingConventionIssue.dominant.convention + '. ' +
+        (namingIsSingularName ? 'This ' : 'These ') + namingDistinctCount + ' name' + (namingIsSingularName ? '' : 's') + namingCappedNote + ' ' +
+        (namingIsSingularName ? 'appears' : 'appear') + ' ' + namingOccurrenceCount + ' time' + (namingIsSingularOccurrence ? '' : 's') + namingCombinedNote +
+        ' using ' + namingConventionIssue.minority.convention + ' instead.';
+      var namingActionSentence = 'Consider renaming ' + (namingIsSingularName ? 'it' : 'them') + ' for consistency.';
+      namingConventionHtml = '<div class="terminology-summary-line">' + esc(namingFactSentence) + '</div>' +
+        '<div class="terminology-summary-line">' + esc(namingActionSentence) + '</div>' +
+        '<div class="issue-list">' + namingConventionIssue.minority.examples.map(function (ex) {
+          return '<div class="issue"><span class="issue-field">' + esc(ex.name) + '</span><span class="issue-msg">' + esc(ex.location) + '</span></div>';
+        }).join('') + '</div>';
     }
 
     var rowsHtml = endpoints.map(function (e) {
@@ -3543,6 +3979,7 @@
       '  .field-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }\n' +
       '  .breakdown-row { display: grid; grid-template-columns: 180px 1fr 32px; align-items: center; gap: 12px; padding: 7px 0; font-size: 13px; }\n' +
       '  .breakdown-label { color: var(--text-secondary); }\n' +
+      '  .breakdown-row-zero .breakdown-label { color: var(--text-muted); }\n' +
       '  .breakdown-bar-track { height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; }\n' +
       '  .breakdown-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }\n' +
       '  .breakdown-count { text-align: right; color: var(--text-muted); }\n' +
@@ -3560,10 +3997,17 @@
       '  .issue-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }\n' +
       '  .issue { font-size: 13px; display: flex; gap: 10px; flex-wrap: wrap; }\n' +
       '  .issue-field { color: var(--accent); font-weight: 600; flex-shrink: 0; }\n' +
-      '  .issue-msg { color: var(--text-secondary); }\n' +
+      '  .issue-msg { color: var(--text-secondary); overflow-wrap: break-word; }\n' +
       '  .no-issues { margin-top: 10px; font-size: 13px; color: var(--text-muted); }\n' +
       '  .terminology-empty { font-size: 13px; color: var(--text-muted); }\n' +
+      '  .terminology-intro { font-size: 13px; line-height: 1.6; color: var(--text-secondary); margin: 0 0 18px; }\n' +
       '  .terminology-summary-line { font-size: 13px; color: var(--text-secondary); margin-bottom: 18px; }\n' +
+      '  .naming-convention-examples-intro { font-size: 13px; color: var(--text-secondary); margin: 0 0 12px; }\n' +
+      '  .terminology-items .issue { flex-direction: column; gap: 0; }\n' +
+      '  .terminology-desc-quote { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 6px; overflow-wrap: break-word; }\n' +
+      '  .terminology-desc-meta { font-size: 12px; color: var(--text-muted); margin: 0 0 4px; }\n' +
+      '  .terminology-desc-locations { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }\n' +
+      '  .terminology-desc-locations li { font-size: 12px; color: var(--text-secondary); overflow-wrap: break-word; }\n' +
       '  .terminology-items { display: flex; flex-direction: column; gap: 18px; }\n' +
       '  .terminology-item { border-top: 1px solid var(--divider); padding-top: 14px; }\n' +
       '  .terminology-item:first-child { border-top: none; padding-top: 0; }\n' +
@@ -3603,8 +4047,11 @@
       '\n</section>\n' +
       '<h2 class="snapshot-section-heading">Terminology issues</h2>\n' +
       '<section class="card">\n' +
-      '<div class="field-label">Terminology consistency</div>\n' +
       terminologyHtml +
+      '\n</section>\n' +
+      '<section class="card">\n' +
+      '<div class="field-label">Naming convention</div>\n' +
+      namingConventionHtml +
       '\n</section>\n' +
       '<footer>Generated by OpenAPI Spec Audit – read-only snapshot, not connected to the live tool.</footer>\n' +
       '</div>\n' +
