@@ -330,6 +330,23 @@
 
   /* Spec-wide checks: terminology + naming convention */
 
+  /* Field-descriptions content and the naming-convention detail now live in
+     one card (see #terminologyCard), not two – this divider only appears
+     when both are visible at once (state.terminologyFilter is null/"all"),
+     via the adjacent-sibling selector below. When naming-convention is the
+     only thing showing, #terminologyListArea is [hidden] and this rule
+     doesn't match, so there's no stray divider floating under the controls
+     row with nothing above it to separate from. */
+  .naming-convention-card {
+    padding-top: 4px;
+  }
+
+  #terminologyListArea:not([hidden]) + .naming-convention-card {
+    border-top: 1px solid var(--divider);
+    margin-top: 24px;
+    padding-top: 22px;
+  }
+
   .terminology-intro {
     font-size: 13px;
     line-height: 1.6;
@@ -442,6 +459,15 @@
     max-width: 100%;
   }
 
+  /* Same accent hover/active treatment as the Export JSON/Export HTML report
+     buttons (.summary-actions .btn-secondary) – "Clear diff" isn't in that
+     container, so it needs its own matching rule. */
+  .diff-upload-row .btn-secondary:hover,
+  .diff-upload-row .btn-secondary:active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
   .diff-file-status {
     font-size: 13px;
     color: var(--text-secondary);
@@ -504,6 +530,18 @@
     justify-content: space-between;
     gap: 16px;
     font-size: 13px;
+    padding: 4px 6px;
+    margin: 0 -6px;
+    border-radius: 6px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+  .diff-breakdown-row:hover {
+    background: rgba(250, 250, 249, 0.03);
+  }
+  .diff-breakdown-row.active {
+    background: rgba(249, 115, 22, 0.08);
+    border-left-color: var(--accent);
   }
   .diff-breakdown-label {
     color: var(--text-secondary);
@@ -832,13 +870,6 @@
     color: var(--text-secondary);
   }
 
-  /* The terminology-tab filter select sits above both spec-wide check cards
-     (not inside either one), since whichever card it targets could itself be
-     hidden while a terminology filter is active. */
-  .terminology-filter-controls {
-    padding-bottom: 14px;
-  }
-
   /* Table card */
   .table-card { padding: 20px 20px 8px; }
 
@@ -1081,9 +1112,9 @@
     <p class="tagline">
       Paste an OpenAPI 3.0/3.1 spec to get a scored report of its documentation gaps –
       missing descriptions, absent examples, undocumented error responses, loose type
-      constraints, and semantic inconsistencies. Checks are configurable, reports are
-      exportable, and you can compare runs to track whether a spec is improving or
-      regressing.
+      constraints, semantic inconsistencies, and spec-wide naming/description
+      consistency. Checks are configurable, reports are exportable, and you can compare
+      runs over time.
     </p>
     <p class="tagline-note">
       This tool audits documentation quality, not schema correctness; it doesn't render
@@ -1227,7 +1258,7 @@
         <div class="diff-upload-row">
           <input type="file" id="diffFileInput" accept="application/json,.json" />
           <span class="diff-file-status" id="diffFileStatus"></span>
-          <button type="button" class="btn-secondary" id="diffClearBtn" hidden>Clear comparison</button>
+          <button type="button" class="btn-secondary" id="diffClearBtn" hidden>Clear diff</button>
         </div>
         <p class="diff-error" id="diffError" hidden></p>
 
@@ -1244,6 +1275,7 @@
           <div class="field-label diff-endpoints-label">Endpoint changes</div>
           <div class="table-controls" id="diffTableControls">
             <input type="text" id="diffSearchInput" placeholder="Filter by path…" />
+            <select id="diffCategoryFilterSelect"></select>
             <select id="diffStatusFilter">
               <option value="">All changes</option>
               <option value="regressed">Regressed</option>
@@ -1279,7 +1311,7 @@
         </div>
       </section>
 
-      <section class="card table-card">
+      <section class="card table-card" id="endpointTableCard">
         <div class="table-controls" id="tableControls">
           <input type="text" id="searchInput" placeholder="Filter by path…" />
           <select id="categoryFilterSelect"></select>
@@ -1321,15 +1353,10 @@
     </div>
 
     <div class="report-tab-panel" id="tabPanelTerminology" role="tabpanel" hidden>
-      <div class="table-controls terminology-filter-controls">
-        <select id="terminologyFilterSelect"></select>
-      </div>
-
       <section class="card terminology-card" id="terminologyCard">
-        <p class="terminology-intro">Each entry below is a field or parameter name whose description differs meaningfully depending on where it appears in the spec. The distinct descriptions found and where each one occurs are listed under the name.</p>
-        <div class="terminology-summary" id="terminologySummary"></div>
         <div class="table-controls" id="terminologyControls">
           <input type="text" id="terminologySearchInput" placeholder="Filter by field name…" />
+          <select id="terminologyFilterSelect"></select>
           <select id="terminologySortSelect">
             <option value="occurrences-desc">Most occurrences first</option>
             <option value="descriptions-desc">Most distinct descriptions first</option>
@@ -1337,14 +1364,17 @@
           </select>
           <span class="result-count" id="terminologyResultCount"></span>
         </div>
-        <div class="pagination" id="terminologyPaginationTop" hidden></div>
-        <div class="terminology-items" id="terminologyList"></div>
-        <div class="empty-state" id="terminologyEmptyState" hidden>No field names match the current filter.</div>
-        <div class="pagination" id="terminologyPaginationBottom" hidden></div>
-      </section>
-
-      <section class="card naming-convention-card" id="namingConventionSection">
-        <div class="naming-convention-detail" id="namingConventionDetail"></div>
+        <div id="terminologyListArea">
+          <div class="terminology-summary" id="terminologySummary"></div>
+          <p class="terminology-intro" id="terminologyIntro" hidden>Each entry below is a field or parameter name whose description differs meaningfully depending on where it appears in the spec. The distinct descriptions found and where each one occurs are listed under the name.</p>
+          <div class="pagination" id="terminologyPaginationTop" hidden></div>
+          <div class="terminology-items" id="terminologyList"></div>
+          <div class="empty-state" id="terminologyEmptyState" hidden>No field names match the current filter.</div>
+          <div class="pagination" id="terminologyPaginationBottom" hidden></div>
+        </div>
+        <div class="naming-convention-card" id="namingConventionSection">
+          <div class="naming-convention-detail" id="namingConventionDetail"></div>
+        </div>
       </section>
     </div>
   </section>
@@ -1425,7 +1455,7 @@
     unresolvable: "Unresolvable references",
     "parse-error": "Endpoints with parsing issues"
   };
-  var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "semantic", "unresolvable", "parse-error"];
+  var CATEGORY_ORDER = ["unresolvable", "parse-error", "description", "errors", "constraints", "required", "examples", "semantic", "low-quality"];
 
   // Categories a user can turn off as a single unit. "unresolvable" and
   // "parse-error" are deliberately excluded – they flag structural problems
@@ -2382,14 +2412,12 @@
       return !enabledCategories || enabledCategories.has(c);
     }
 
+    // Fixed severity order (CATEGORY_ORDER), not sorted by count – a category's
+    // position never moves regardless of how many issues a given spec has in
+    // it, so the same category always ranks the same relative to the others
+    // across different specs.
     var categoryBreakdown = CATEGORY_ORDER.filter(categoryRan)
-      .map(function (c) { return { category: c, label: CATEGORY_LABELS[c] || c, count: byCategory[c] || 0 }; })
-      .sort(function (a, b) {
-        if (a.count === 0 && b.count === 0) return a.label.localeCompare(b.label);
-        if (a.count === 0) return 1;
-        if (b.count === 0) return -1;
-        return b.count - a.count;
-      });
+      .map(function (c) { return { category: c, label: CATEGORY_LABELS[c] || c, count: byCategory[c] || 0 }; });
 
     return {
       overallScore: overallScore,
@@ -2672,6 +2700,7 @@
   var exportJsonBtn = document.getElementById("exportJsonBtn");
   var exportHtmlBtn = document.getElementById("exportHtmlBtn");
   var terminologySummaryEl = document.getElementById("terminologySummary");
+  var terminologyIntroEl = document.getElementById("terminologyIntro");
   var terminologyControlsEl = document.getElementById("terminologyControls");
   var terminologySearchInput = document.getElementById("terminologySearchInput");
   var terminologySortSelect = document.getElementById("terminologySortSelect");
@@ -2680,7 +2709,7 @@
   var terminologyEmptyState = document.getElementById("terminologyEmptyState");
   var namingConventionSectionEl = document.getElementById("namingConventionSection");
   var namingConventionDetailEl = document.getElementById("namingConventionDetail");
-  var terminologyCardEl = document.getElementById("terminologyCard");
+  var terminologyListAreaEl = document.getElementById("terminologyListArea");
   var terminologyFilterSelect = document.getElementById("terminologyFilterSelect");
   var endpointIssuesHeading = document.getElementById("endpointIssuesHeading");
   var terminologyIssuesHeading = document.getElementById("terminologyIssuesHeading");
@@ -2693,6 +2722,7 @@
   var emptyState = document.getElementById("emptyState");
   var categoryFilterSelect = document.getElementById("categoryFilterSelect");
   var tableControls = document.getElementById("tableControls");
+  var endpointTableCardEl = document.getElementById("endpointTableCard");
 
   var diffFileInput = document.getElementById("diffFileInput");
   var diffFileStatus = document.getElementById("diffFileStatus");
@@ -2702,6 +2732,7 @@
   var diffConfigNote = document.getElementById("diffConfigNote");
   var diffSummaryEl = document.getElementById("diffSummary");
   var diffBreakdownEl = document.getElementById("diffBreakdown");
+  var diffCategoryFilterSelect = document.getElementById("diffCategoryFilterSelect");
   var diffSearchInput = document.getElementById("diffSearchInput");
   var diffStatusFilter = document.getElementById("diffStatusFilter");
   var diffSortSelect = document.getElementById("diffSortSelect");
@@ -2814,7 +2845,10 @@
     previousFileName: null,
     diff: null,
     view: [],
-    page: 1
+    page: 1,
+    // Separate from state.categoryFilter (the regular Endpoint issues
+    // table's filter) – this one only ever applies to diffState.view.
+    categoryFilter: null
   };
 
   // ---------------------------------------------------------------------
@@ -2850,15 +2884,11 @@
   // indicators with a real, two-way-synced control: selecting an option here
   // calls the exact same setCategoryFilter()/setTerminologyFilter() functions
   // a row click does, and a row click updates the select's value to match.
-  categoryFilterSelect.innerHTML = '<option value="">All issues</option>' +
-    SpecAuditEngine.CATEGORY_ORDER.map(function (c) {
-      return '<option value="' + esc(c) + '">' + esc(SpecAuditEngine.CATEGORY_LABELS[c] || c) + '</option>';
-    }).join("");
-
-  terminologyFilterSelect.innerHTML =
-    '<option value="">All terminology issues</option>' +
-    '<option value="field-descriptions">Inconsistent field descriptions</option>' +
-    '<option value="naming-convention">Inconsistent naming convention</option>';
+  // Option text carries each category's current count so it stays legible
+  // without needing to also look at the breakdown bars – see
+  // updateCategoryFilterSelectOptions/updateTerminologyFilterSelectOptions,
+  // which rebuild these every audit run from the exact same data the
+  // breakdown bars use, not a separate calculation.
 
   configToggle.addEventListener("click", function () {
     var expanded = configToggle.getAttribute("aria-expanded") === "true";
@@ -2932,7 +2962,10 @@
 
     var rows = summary.categoryBreakdown;
 
-    var max = rows[0].count || 1;
+    // rows is in fixed severity order now, not sorted by count, so the
+    // highest count can be anywhere in the array – find it explicitly rather
+    // than assuming rows[0].
+    var max = rows.reduce(function (m, r) { return Math.max(m, r.count); }, 0) || 1;
     breakdownEl.innerHTML = rows.map(function (r) {
       var pct = r.count === 0 ? 0 : Math.max(4, Math.round((r.count / max) * 100));
       var color = "var(--accent)";
@@ -2954,6 +2987,21 @@
         : '';
       return row + explainPanel;
     }).join("");
+
+    updateCategoryFilterSelectOptions(rows);
+  }
+
+  // Rebuilds categoryFilterSelect's options from the exact same rows array
+  // renderSummary just used for the breakdown bars – same categories (only
+  // ones that ran, 0-count included), same counts, always in sync. Rebuilding
+  // resets the select's value, so it's restored from state.categoryFilter
+  // afterward rather than left to default to the first option.
+  function updateCategoryFilterSelectOptions(rows) {
+    categoryFilterSelect.innerHTML = '<option value="">All endpoint issues</option>' +
+      rows.map(function (r) {
+        return '<option value="' + esc(r.category) + '">' + esc(r.label) + ' (' + r.count + ')</option>';
+      }).join("");
+    categoryFilterSelect.value = state.categoryFilter || "";
   }
 
   // Single-row summary shown in the always-visible summary card, alongside
@@ -2973,13 +3021,33 @@
   // everything else scaled relative to it" max the two bars need to agree
   // on, from current state directly. A check that's disabled or has nothing
   // to report doesn't count toward the max (it never renders a bar at all,
-  // it renders one of the empty-state messages above instead).
-  function specWideMaxCount() {
+  // it renders one of the empty-state messages above instead). Also the one
+  // source of truth for each check's effective count, reused by
+  // updateTerminologyFilterSelectOptions below so the dropdown's numbers can
+  // never drift from the bars'.
+  function specWideCounts() {
     var termCount = state.enabledCategories.has("spec-wide-terminology") ? state.terminologyIssues.length : 0;
     var namingCount = (state.enabledCategories.has("spec-wide-naming-convention") && state.namingConventionIssue)
       ? state.namingConventionIssue.minority.count
       : 0;
-    return Math.max(termCount, namingCount) || 1;
+    return { termCount: termCount, namingCount: namingCount };
+  }
+
+  function specWideMaxCount() {
+    var counts = specWideCounts();
+    return Math.max(counts.termCount, counts.namingCount) || 1;
+  }
+
+  // Rebuilds terminologyFilterSelect's options with each check's current
+  // count, same as updateCategoryFilterSelectOptions above. Called after
+  // every audit run since counts change per spec.
+  function updateTerminologyFilterSelectOptions() {
+    var counts = specWideCounts();
+    terminologyFilterSelect.innerHTML =
+      '<option value="">All terminology issues</option>' +
+      '<option value="field-descriptions">Inconsistent field descriptions (' + counts.termCount + ')</option>' +
+      '<option value="naming-convention">Inconsistent naming convention (' + counts.namingCount + ')</option>';
+    terminologyFilterSelect.value = state.terminologyFilter || "";
   }
 
   function renderTerminologyBreakdown() {
@@ -3154,6 +3222,7 @@
     if (!enabled) {
       terminologySummaryEl.innerHTML = '<div class="terminology-empty">This check is currently disabled.</div>';
       terminologyControlsEl.hidden = true;
+      terminologyIntroEl.hidden = true;
       terminologyListEl.innerHTML = "";
       terminologyEmptyState.hidden = true;
       terminologyPaginationContainers.forEach(function (el) { el.hidden = true; });
@@ -3164,6 +3233,7 @@
     if (allIssues.length === 0) {
       terminologySummaryEl.innerHTML = '<div class="terminology-empty">No terminology inconsistencies found.</div>';
       terminologyControlsEl.hidden = true;
+      terminologyIntroEl.hidden = true;
       terminologyListEl.innerHTML = "";
       terminologyEmptyState.hidden = true;
       terminologyPaginationContainers.forEach(function (el) { el.hidden = true; });
@@ -3171,6 +3241,7 @@
     }
 
     terminologyControlsEl.hidden = false;
+    terminologyIntroEl.hidden = false;
     terminologySummaryEl.innerHTML = "";
 
     var view = state.terminologyView;
@@ -3325,7 +3396,12 @@
   // since they apply to different tabs. Syncs terminologyFilterSelect's value
   // and hides the OTHER spec-wide card entirely (same hidden-attribute
   // show/hide used everywhere else in this file for filtering – not
-  // opacity), so only the selected check's content is shown.
+  // opacity), so only the selected check's content is shown. Only the list
+  // area (#terminologyListArea) hides for the naming-convention filter, not
+  // the whole card – terminologyFilterSelect lives in #terminologyControls,
+  // a sibling of the list area, specifically so the dropdown itself (and
+  // search/sort alongside it) stays visible and usable no matter which
+  // filter is currently selected.
   function updateTerminologyFilterIndicator() {
     var filter = state.terminologyFilter;
     terminologyFilterSelect.value = filter || "";
@@ -3335,7 +3411,7 @@
     if (termRow) termRow.classList.toggle("active", filter === "field-descriptions");
     if (namingRow) namingRow.classList.toggle("active", filter === "naming-convention");
 
-    if (terminologyCardEl) terminologyCardEl.hidden = filter === "naming-convention";
+    terminologyListAreaEl.hidden = filter === "naming-convention";
     namingConventionSectionEl.hidden = filter === "field-descriptions";
   }
 
@@ -3543,7 +3619,7 @@
 
   // Used by clicking the "Endpoint issues" heading (see below) to mean "show
   // everything in this tab, unfiltered" – also resets categoryFilterSelect
-  // back to "All issues" via updateCategoryFilterIndicator().
+  // back to "All endpoint issues" via updateCategoryFilterIndicator().
   function clearCategoryFilter() {
     state.categoryFilter = null;
     updateBreakdownActiveStates();
@@ -3668,6 +3744,7 @@
             renderTerminologyBreakdown();
             renderNamingConventionBreakdown();
             renderNamingConventionDetail();
+            updateTerminologyFilterSelectOptions();
             terminologySearchInput.value = "";
             terminologySortSelect.value = "occurrences-desc";
             applyTerminologyFilters();
@@ -3866,7 +3943,7 @@
       : "Checks disabled for this report: " + disabled.map(function (c) { return c.label; }).join(", ");
 
     var breakdownHtml = (function () {
-          var max = summary.categoryBreakdown[0].count || 1;
+          var max = summary.categoryBreakdown.reduce(function (m, r) { return Math.max(m, r.count); }, 0) || 1;
           return summary.categoryBreakdown.map(function (r) {
             var pct = r.count === 0 ? 0 : Math.max(4, Math.round((r.count / max) * 100));
             return '<div class="breakdown-row' + (r.count === 0 ? ' breakdown-row-zero' : '') + '">' +
@@ -3885,9 +3962,9 @@
     } else if (terminologyIssues.length === 0) {
       terminologyHtml = '<div class="terminology-empty">No terminology inconsistencies found.</div>';
     } else {
-      terminologyHtml = '<p class="terminology-intro">Each entry below is a field or parameter name whose description differs meaningfully depending on where it appears in the spec. The distinct descriptions found and where each one occurs are listed under the name.</p>' +
-        '<div class="terminology-summary-line">' + terminologyIssues.length + ' field name' +
+      terminologyHtml = '<div class="terminology-summary-line">' + terminologyIssues.length + ' field name' +
         (terminologyIssues.length === 1 ? "" : "s") + ' with inconsistent descriptions across the spec.</div>' +
+        '<p class="terminology-intro">Each entry below is a field or parameter name whose description differs meaningfully depending on where it appears in the spec. The distinct descriptions found and where each one occurs are listed under the name.</p>' +
         '<div class="terminology-items">' +
         terminologyIssues.map(function (item) {
           var descHtml = item.descriptions.map(function (d) {
@@ -4001,6 +4078,7 @@
       '  .no-issues { margin-top: 10px; font-size: 13px; color: var(--text-muted); }\n' +
       '  .terminology-empty { font-size: 13px; color: var(--text-muted); }\n' +
       '  .terminology-intro { font-size: 13px; line-height: 1.6; color: var(--text-secondary); margin: 0 0 18px; }\n' +
+      '  .naming-convention-divider { border-top: 1px solid var(--divider); margin-top: 24px; padding-top: 22px; }\n' +
       '  .terminology-summary-line { font-size: 13px; color: var(--text-secondary); margin-bottom: 18px; }\n' +
       '  .naming-convention-examples-intro { font-size: 13px; color: var(--text-secondary); margin: 0 0 12px; }\n' +
       '  .terminology-items .issue { flex-direction: column; gap: 0; }\n' +
@@ -4048,10 +4126,10 @@
       '<h2 class="snapshot-section-heading">Terminology issues</h2>\n' +
       '<section class="card">\n' +
       terminologyHtml +
-      '\n</section>\n' +
-      '<section class="card">\n' +
+      '<div class="naming-convention-divider">\n' +
       '<div class="field-label">Naming convention</div>\n' +
       namingConventionHtml +
+      '</div>\n' +
       '\n</section>\n' +
       '<footer>Generated by OpenAPI Spec Audit – read-only snapshot, not connected to the live tool.</footer>\n' +
       '</div>\n' +
@@ -4120,13 +4198,48 @@
     diffBreakdownEl.innerHTML = diff.categoryDeltas.length === 0
       ? '<div class="diff-breakdown-empty">No category-level changes.</div>'
       : diff.categoryDeltas.map(function (r) {
-          return '<div class="diff-breakdown-row">' +
+          var isActive = diffState.categoryFilter === r.category;
+          return '<div class="diff-breakdown-row' + (isActive ? ' active' : '') + '" data-category="' + esc(r.category) + '">' +
             '<span class="diff-breakdown-label">' + esc(r.label) + '</span>' +
             '<span>' + r.previousCount + ' → ' + r.currentCount +
             ' <span class="' + inverseDeltaClass(r.delta) + '">(' + formatDelta(r.delta) + ')</span></span>' +
             '</div>';
         }).join("");
   }
+
+  // Keeps diffCategoryFilterSelect's value and the .active row highlight in
+  // sync with diffState.categoryFilter, regardless of whether the change
+  // came from the dropdown itself or from clicking a "Category changes" row
+  // – same two-way sync pattern as categoryFilterSelect on the main
+  // Endpoint issues tab.
+  function updateDiffCategoryFilterIndicator() {
+    var filter = diffState.categoryFilter;
+    diffCategoryFilterSelect.value = filter || "";
+    diffBreakdownEl.querySelectorAll(".diff-breakdown-row").forEach(function (row) {
+      row.classList.toggle("active", !!filter && row.dataset.category === filter);
+    });
+  }
+
+  // Same toggle-on-reclick behavior as setCategoryFilter/setTerminologyFilter
+  // elsewhere in this file, scoped to diffState instead of state – clicking
+  // a "Category changes" row jumps to the (already-visible, no tab to
+  // switch) Endpoint changes list below, filtered to endpoints with a change
+  // in that category.
+  function setDiffCategoryFilter(category) {
+    diffState.categoryFilter = diffState.categoryFilter === category ? null : category;
+    updateDiffCategoryFilterIndicator();
+    applyDiffFilters();
+  }
+
+  diffBreakdownEl.addEventListener("click", function (e) {
+    var row = e.target.closest(".diff-breakdown-row");
+    if (!row) return;
+    setDiffCategoryFilter(row.dataset.category);
+  });
+
+  diffCategoryFilterSelect.addEventListener("change", function () {
+    setDiffCategoryFilter(diffCategoryFilterSelect.value || null);
+  });
 
   var DIFF_STATUS_LABELS = {
     improved: "Improved",
@@ -4150,6 +4263,7 @@
     var view = diffState.diff.endpoints.filter(function (e) {
       if (f.search && e.path.toLowerCase().indexOf(f.search) === -1) return false;
       if (f.status && e.status !== f.status) return false;
+      if (diffState.categoryFilter && !e.categoryChanges.some(function (c) { return c.category === diffState.categoryFilter; })) return false;
       return true;
     });
 
@@ -4306,13 +4420,56 @@
   diffStatusFilter.addEventListener("change", applyDiffFilters);
   diffSortSelect.addEventListener("change", applyDiffFilters);
 
+  // Rebuilds diffStatusFilter's options with each status's current count for
+  // this comparison, same pattern as updateCategoryFilterSelectOptions – "All
+  // changes" stays uncounted (consistent with "All endpoint issues"/"All
+  // terminology issues" elsewhere), the rest get their classification count
+  // straight from diffState.diff.endpoints, not a separate calculation.
+  function updateDiffStatusFilterOptions() {
+    var counts = { regressed: 0, improved: 0, unchanged: 0, "new": 0, removed: 0 };
+    diffState.diff.endpoints.forEach(function (e) { counts[e.status] = (counts[e.status] || 0) + 1; });
+    diffStatusFilter.innerHTML =
+      '<option value="">All changes</option>' +
+      '<option value="regressed">Regressed (' + counts.regressed + ')</option>' +
+      '<option value="improved">Improved (' + counts.improved + ')</option>' +
+      '<option value="unchanged">Unchanged (' + counts.unchanged + ')</option>' +
+      '<option value="new">New endpoints (' + counts["new"] + ')</option>' +
+      '<option value="removed">Removed endpoints (' + counts.removed + ')</option>';
+  }
+
+  // Rebuilds diffCategoryFilterSelect's options from diffState.diff's own
+  // category changes (diff.categoryDeltas) – same categories the "Category
+  // changes" breakdown rows show, in the same order. Each option's count is
+  // the number of endpoints with a change in that category (i.e. how many
+  // rows the Endpoint changes list narrows to if selected), computed from
+  // diffState.diff.endpoints' categoryChanges – not a separate calculation
+  // from the delta numbers shown in the breakdown.
+  function updateDiffCategoryFilterSelectOptions() {
+    var counts = {};
+    diffState.diff.endpoints.forEach(function (e) {
+      e.categoryChanges.forEach(function (c) {
+        counts[c.category] = (counts[c.category] || 0) + 1;
+      });
+    });
+    diffCategoryFilterSelect.innerHTML = '<option value="">All categories</option>' +
+      diffState.diff.categoryDeltas.map(function (r) {
+        return '<option value="' + esc(r.category) + '">' + esc(r.label) + ' (' + (counts[r.category] || 0) + ')</option>';
+      }).join("");
+    diffCategoryFilterSelect.value = diffState.categoryFilter || "";
+  }
+
   // Recomputes the diff from scratch (or hides the results panel if either
   // side is missing) – called after every audit run and every
-  // previous-report upload/clear, never patched incrementally.
+  // previous-report upload/clear, never patched incrementally. The regular
+  // Endpoint issues table is only relevant when there's no active
+  // comparison – showing both it and the Endpoint changes diff table at once
+  // is confusing, since they cover the same endpoints in unrelated ways.
   function updateDiff() {
+    diffState.categoryFilter = null;
     if (!diffState.previousReport || state.endpoints.length === 0) {
       diffResultsEl.hidden = true;
       diffState.diff = null;
+      endpointTableCardEl.hidden = false;
       return;
     }
     var current = buildReportPayload();
@@ -4328,10 +4485,15 @@
       showDiffError("Couldn't compare against this report – it doesn't match the expected format (" + e.message + ").");
       diffResultsEl.hidden = true;
       diffState.diff = null;
+      endpointTableCardEl.hidden = false;
       return;
     }
     diffResultsEl.hidden = false;
+    endpointTableCardEl.hidden = true;
     renderDiffSummary(diffState.diff);
+    updateDiffCategoryFilterSelectOptions();
+    updateDiffCategoryFilterIndicator();
+    updateDiffStatusFilterOptions();
     diffSearchInput.value = "";
     diffStatusFilter.value = "";
     diffSortSelect.value = "delta-asc";

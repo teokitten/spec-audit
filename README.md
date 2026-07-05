@@ -1,13 +1,16 @@
 # OpenAPI Spec Audit
 
 A documentation-quality linter for OpenAPI specs. Paste a spec (JSON or YAML),
-fetch one from a URL, or load a sample, and get a scored report of documentation
-gaps: missing descriptions, absent examples, undocumented error responses, loose
-type constraints, ambiguous required/optional status, and semantic
-inconsistencies. Checks are configurable, reports are exportable (JSON or a
-standalone HTML snapshot), and you can compare two reports to track whether a
-spec is improving or regressing over time. A CLI is also included for running
-audits outside the browser, e.g. in CI.
+fetch one from a URL, or load a sample, and get a scored report of
+documentation gaps: missing descriptions, absent examples, undocumented error
+responses, loose type constraints, ambiguous required/optional status, and
+semantic inconsistencies. It also checks spec-wide consistency: whether the
+same field is described the same way everywhere it appears, and whether naming
+conventions are used consistently across the spec. Checks are configurable,
+reports are exportable (JSON or a standalone HTML snapshot), and you can
+compare two reports to track whether a spec is improving or regressing over
+time. A CLI is also included for running audits outside the browser, e.g. in
+CI.
 
 This is not a spec renderer – Swagger UI, Redoc, and Scalar already do that well.
 This tool checks whether a human reader has what they need, not schema
@@ -39,15 +42,24 @@ correctness.
 
 ## Limitations
 
-- Short descriptions: a description can be short but still correct (like "Not
-  Found") – the tool may flag it anyway just for being brief.
+- Short descriptions: brief but correct text (e.g. "Not Found," 9 characters)
+  may still get flagged just for being under 10 characters.
 - Field-name mentions: one check looks for field names mentioned in the text.
-  It's easily confused by lists of allowed values, so it's off by default.
+  It's easily confused by lists of allowed values, and therefore off by default.
 - Same word, different meaning: another check looks for a term described
   inconsistently across the spec. Sometimes a word is used for two different
   things on purpose – the tool can't always tell the difference.
-- Bottom line: these are automated guesses, not certainties. Use them to guide
-  a review, not to replace one.
+
+## Example specs
+
+The sample specs available in the tool are fetched live from their public
+sources, not bundled or redistributed:
+
+- [GitHub REST API](https://github.com/github/rest-api-description) – MIT
+  licensed
+- [Stripe API](https://github.com/stripe/openapi) – MIT licensed
+- [Swagger Petstore](https://petstore3.swagger.io/) – Apache 2.0, the official
+  reference spec maintained for testing tools like this one
 
 ## Running locally
 
