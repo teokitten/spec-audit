@@ -934,6 +934,17 @@
     if (typeof obj.overallScore !== "number" || typeof obj.overallGrade !== "string" || !Array.isArray(obj.endpoints)) {
       return "This file doesn't look like a spec-audit JSON export – expected fields (\"overallScore\", \"overallGrade\", \"endpoints\") are missing.";
     }
+    // diffReports() assumes categoryBreakdown/disabledChecks are arrays of
+    // entries (e.g. { category, count }), not a { category: count } map –
+    // that's an easy shape to get wrong hand-constructing a file, and
+    // without this check it slips past validation only to throw later,
+    // inside diffReports, with nothing shown to the user.
+    if (obj.categoryBreakdown != null && !Array.isArray(obj.categoryBreakdown)) {
+      return "This file doesn't look like a spec-audit JSON export – \"categoryBreakdown\" should be a list of { category, count } entries, not an object.";
+    }
+    if (obj.disabledChecks != null && !Array.isArray(obj.disabledChecks)) {
+      return "This file doesn't look like a spec-audit JSON export – \"disabledChecks\" should be a list, not an object.";
+    }
     return null;
   }
 

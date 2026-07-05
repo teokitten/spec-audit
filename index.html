@@ -280,12 +280,45 @@
     color: var(--text);
   }
 
-  /* Terminology consistency (spec-wide check) */
-  .terminology-intro {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin: 0 0 16px;
+  /* Report tabs */
+  .report-tabs {
+    display: flex;
+    gap: 20px;
+    margin: 24px 0 20px;
+    border-bottom: 1px solid var(--divider);
+    /* Setting only overflow-x makes overflow-y compute to "auto" too (per
+       spec), which shows a stray vertical scrollbar the instant content is
+       even 1px taller than the box – overflow-y: hidden pins it off while
+       still allowing horizontal scroll if narrow viewports ever need it. */
+    overflow-x: auto;
+    overflow-y: hidden;
   }
+
+  .report-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0 2px 10px;
+    margin-bottom: -1px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .report-tab:hover {
+    color: var(--text-secondary);
+  }
+  .report-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .report-tab-panel[hidden] {
+    display: none;
+  }
+
+  /* Terminology consistency (spec-wide check) */
 
   .terminology-empty {
     font-size: 13px;
@@ -472,9 +505,20 @@
     margin-bottom: 20px;
   }
 
-  .summary-actions .btn-primary {
-    padding: 7px 14px;
-    font-size: 13px;
+  /* Secondary actions (export), not calls to action like Run audit/Fetch –
+     outlined instead of solid-filled, and a size step down, so they read as
+     clearly lower-priority. Hover/active light up accent-colored, matching
+     the same pattern used for .config-toggle-btn[aria-expanded="true"] and
+     .report-tab.active elsewhere in the file – :not(:disabled) keeps that
+     from applying while the buttons are waiting on a first audit run. */
+  .summary-actions .btn-secondary {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  .summary-actions .btn-secondary:hover:not(:disabled),
+  .summary-actions .btn-secondary:active:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .summary-top {
@@ -577,11 +621,6 @@
     color: var(--text-secondary);
   }
 
-  .methodology-panel li ul {
-    margin-top: 6px;
-    gap: 4px;
-  }
-
   .methodology-note {
     font-size: 13px;
     line-height: 1.6;
@@ -597,6 +636,23 @@
   .breakdown-section {
     border-top: 1px solid var(--divider);
     padding-top: 22px;
+  }
+
+  /* Endpoint issues sits directly under the four top-level stats with no
+     divider – it's part of the same at-a-glance summary, not a separate
+     calculation, so a rule here would visually overstate the distinction. */
+  .breakdown-section.breakdown-section-flush {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  /* Extra top margin (same value used to separate sections in the
+     standalone HTML export's .snapshot-section-heading) so this section's
+     divider reads as a break between two unrelated calculations – endpoint
+     scoring vs. the spec-wide terminology check – not just another row in
+     the same breakdown list above it. */
+  .breakdown-section-spacious {
+    margin-top: 32px;
   }
 
   .breakdown {
@@ -897,7 +953,7 @@
     display: none;
   }
 
-  .pagination-indicator, .diff-pagination-indicator {
+  .pagination-indicator, .diff-pagination-indicator, .terminology-pagination-indicator {
     font-size: 13px;
     color: var(--text-muted);
   }
@@ -1013,8 +1069,8 @@
   <section id="reportSection" hidden>
     <section class="card summary-card">
       <div class="summary-actions">
-        <button type="button" class="btn-primary" id="exportJsonBtn" disabled>Export JSON</button>
-        <button type="button" class="btn-primary" id="exportHtmlBtn" disabled>Export HTML report</button>
+        <button type="button" class="btn-secondary" id="exportJsonBtn" disabled>Export JSON</button>
+        <button type="button" class="btn-secondary" id="exportHtmlBtn" disabled>Export HTML report</button>
       </div>
       <div class="summary-top">
         <div class="summary-group">
@@ -1043,11 +1099,11 @@
         </div>
         <div class="summary-group">
           <div class="stat">
-            <span class="value-label">endpoints audited</span>
+            <span class="value-label">Endpoints audited</span>
             <span class="stat-value" id="endpointCount">0</span>
           </div>
           <div class="stat">
-            <span class="value-label">issues found</span>
+            <span class="value-label">Issues found</span>
             <span class="stat-value" id="issueCount">0</span>
           </div>
         </div>
@@ -1055,142 +1111,162 @@
 
       <div class="methodology-panel" id="methodologyPanel" hidden>
         <ul>
-          <li>Grade = average endpoint score:
-            <ul>
-              <li>A = 90–100</li>
-              <li>B = 75–89</li>
-              <li>C = 60–74</li>
-              <li>D = 40–59</li>
-              <li>F = 0–39</li>
-            </ul>
-          </li>
-          <li>A missing description or undocumented error costs an endpoint twice as many points as a missing example, loose constraint, or ambiguous required field.</li>
+          <li>A = 90–100</li>
+          <li>B = 75–89</li>
+          <li>C = 60–74</li>
+          <li>D = 40–59</li>
+          <li>F = 0–39</li>
         </ul>
         <p class="methodology-note">This is a documentation-quality heuristic, not a spec validator – it checks whether a reader has what they need, not schema correctness. Checks turned off in "Configure checks" are excluded from scoring entirely, not just hidden from the report.</p>
         <div class="methodology-limitations">
           <div class="field-label">Known limitations</div>
           <ul>
-            <li>Short (&lt;10 char) descriptions can be flagged even when accurate, e.g. "Not Found".</li>
-            <li>Dangling-field-reference: high false-positive rate on specs using backticks for enum values/scopes – off by default; enable via config or `--enable=semantic-dangling-reference`.</li>
-            <li>Terminology consistency can still flag generic names with few variants that are genuinely different concepts.</li>
-            <li>All checks are pattern-based heuristics, not true understanding – built to under-flag; treat results as input to review, not a replacement for it.</li>
+            <li>Short descriptions: brief but correct text (e.g. "Not Found") may still get flagged just for being short.</li>
+            <li>Field-name mentions: looks for field names in text – easily confused by lists of allowed values, so off by default.</li>
+            <li>Same word, different meaning: a term used inconsistently on purpose vs. by mistake isn't always distinguishable.</li>
+            <li>Bottom line: automated guesses, not certainties – use them to guide a review, not replace one.</li>
           </ul>
         </div>
       </div>
 
-      <div class="breakdown-section">
-        <div class="field-label">Issues by category</div>
+      <div class="breakdown-section breakdown-section-flush">
+        <div class="field-label">Endpoint issues</div>
         <div class="breakdown" id="breakdown"></div>
       </div>
-    </section>
 
-    <section class="card terminology-card">
-      <div class="field-label">Terminology consistency</div>
-      <p class="terminology-intro">Checks whether the same parameter or property name is described consistently everywhere it appears in the spec – a spec-wide comparison, not tied to any one endpoint, so it doesn't affect endpoint scores.</p>
-      <div class="terminology-summary" id="terminologySummary"></div>
-      <div class="terminology-items" id="terminologyList"></div>
-    </section>
-
-    <section class="card diff-card">
-      <div class="field-label">Compare to previous report</div>
-      <p class="diff-intro">Upload a JSON report previously exported from this tool to see what's changed since then.</p>
-      <div class="diff-upload-row">
-        <input type="file" id="diffFileInput" accept="application/json,.json" />
-        <span class="diff-file-status" id="diffFileStatus"></span>
-        <button type="button" class="btn-secondary" id="diffClearBtn" hidden>Clear comparison</button>
+      <div class="breakdown-section breakdown-section-spacious">
+        <div class="field-label">Terminology issues</div>
+        <div class="breakdown" id="terminologyBreakdown"></div>
       </div>
-      <p class="diff-error" id="diffError" hidden></p>
+    </section>
 
-      <div class="diff-results" id="diffResults" hidden>
-        <p class="diff-config-note" id="diffConfigNote" hidden>Note: these reports used different check configurations – category comparisons may not be meaningful.</p>
+    <div class="report-tabs" role="tablist">
+      <button type="button" class="report-tab active" id="tabBtnEndpoints" data-tab="endpoint-issues" role="tab" aria-selected="true" aria-controls="tabPanelEndpoints">Endpoint issues</button>
+      <button type="button" class="report-tab" id="tabBtnTerminology" data-tab="terminology-issues" role="tab" aria-selected="false" aria-controls="tabPanelTerminology">Terminology issues</button>
+    </div>
 
-        <div class="diff-summary" id="diffSummary"></div>
-
-        <div class="breakdown-section">
-          <div class="field-label">Category changes</div>
-          <div class="diff-breakdown" id="diffBreakdown"></div>
+    <div class="report-tab-panel" id="tabPanelEndpoints" role="tabpanel">
+      <section class="card diff-card">
+        <div class="field-label">Compare to previous report</div>
+        <p class="diff-intro">Upload a JSON report previously exported from this tool to see what's changed since then.</p>
+        <div class="diff-upload-row">
+          <input type="file" id="diffFileInput" accept="application/json,.json" />
+          <span class="diff-file-status" id="diffFileStatus"></span>
+          <button type="button" class="btn-secondary" id="diffClearBtn" hidden>Clear comparison</button>
         </div>
+        <p class="diff-error" id="diffError" hidden></p>
 
-        <div class="field-label diff-endpoints-label">Endpoint changes</div>
-        <div class="table-controls" id="diffTableControls">
-          <input type="text" id="diffSearchInput" placeholder="Filter by path…" />
-          <select id="diffStatusFilter">
-            <option value="">All changes</option>
-            <option value="regressed">Regressed</option>
-            <option value="improved">Improved</option>
-            <option value="unchanged">Unchanged</option>
-            <option value="new">New endpoints</option>
-            <option value="removed">Removed endpoints</option>
+        <div class="diff-results" id="diffResults" hidden>
+          <p class="diff-config-note" id="diffConfigNote" hidden>Note: these reports used different check configurations – category comparisons may not be meaningful.</p>
+
+          <div class="diff-summary" id="diffSummary"></div>
+
+          <div class="breakdown-section">
+            <div class="field-label">Category changes</div>
+            <div class="diff-breakdown" id="diffBreakdown"></div>
+          </div>
+
+          <div class="field-label diff-endpoints-label">Endpoint changes</div>
+          <div class="table-controls" id="diffTableControls">
+            <input type="text" id="diffSearchInput" placeholder="Filter by path…" />
+            <select id="diffStatusFilter">
+              <option value="">All changes</option>
+              <option value="regressed">Regressed</option>
+              <option value="improved">Improved</option>
+              <option value="unchanged">Unchanged</option>
+              <option value="new">New endpoints</option>
+              <option value="removed">Removed endpoints</option>
+            </select>
+            <select id="diffSortSelect">
+              <option value="delta-asc">Most regressed first</option>
+              <option value="delta-desc">Most improved first</option>
+              <option value="path-asc">Path (a–z)</option>
+              <option value="method-asc">Method</option>
+            </select>
+            <span class="result-count" id="diffResultCount"></span>
+          </div>
+          <div class="pagination" id="diffPaginationTop" hidden></div>
+          <div class="table-scroll">
+            <table id="diffTable">
+              <thead>
+                <tr>
+                  <th class="col-method">Method</th>
+                  <th class="col-path">Path</th>
+                  <th class="col-status">Change</th>
+                  <th class="col-score">Score</th>
+                </tr>
+              </thead>
+              <tbody id="diffTbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="diffEmptyState" hidden>No endpoints match the current filter.</div>
+          <div class="pagination" id="diffPaginationBottom" hidden></div>
+        </div>
+      </section>
+
+      <section class="card table-card">
+        <div class="category-filter-indicator" id="categoryFilterIndicator" hidden>
+          Filtered by: <strong id="categoryFilterLabel"></strong>
+          <button type="button" id="clearCategoryFilter" aria-label="Clear category filter">&times;</button>
+        </div>
+        <div class="table-controls" id="tableControls">
+          <input type="text" id="searchInput" placeholder="Filter by path…" />
+          <select id="gradeFilter">
+            <option value="">All grades</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="F">F</option>
           </select>
-          <select id="diffSortSelect">
-            <option value="delta-asc">Most regressed first</option>
-            <option value="delta-desc">Most improved first</option>
+          <select id="sortSelect">
+            <option value="score-asc">Lowest score first</option>
+            <option value="score-desc">Highest score first</option>
+            <option value="issues-desc">Most issues first</option>
             <option value="path-asc">Path (a–z)</option>
             <option value="method-asc">Method</option>
           </select>
-          <span class="result-count" id="diffResultCount"></span>
+          <span class="result-count" id="resultCount"></span>
         </div>
-        <div class="pagination" id="diffPaginationTop" hidden></div>
+        <div class="pagination" id="paginationTop" hidden></div>
         <div class="table-scroll">
-          <table id="diffTable">
+          <table id="endpointTable">
             <thead>
               <tr>
                 <th class="col-method">Method</th>
                 <th class="col-path">Path</th>
-                <th class="col-status">Change</th>
                 <th class="col-score">Score</th>
+                <th class="col-grade">Grade</th>
+                <th class="col-issues">Issues</th>
               </tr>
             </thead>
-            <tbody id="diffTbody"></tbody>
+            <tbody id="endpointTbody"></tbody>
           </table>
         </div>
-        <div class="empty-state" id="diffEmptyState" hidden>No endpoints match the current filter.</div>
-        <div class="pagination" id="diffPaginationBottom" hidden></div>
-      </div>
-    </section>
+        <div class="empty-state" id="emptyState" hidden>No endpoints match the current filter.</div>
+        <div class="pagination" id="paginationBottom" hidden></div>
+      </section>
+    </div>
 
-    <section class="card table-card">
-      <div class="category-filter-indicator" id="categoryFilterIndicator" hidden>
-        Filtered by: <strong id="categoryFilterLabel"></strong>
-        <button type="button" id="clearCategoryFilter" aria-label="Clear category filter">&times;</button>
-      </div>
-      <div class="table-controls" id="tableControls">
-        <input type="text" id="searchInput" placeholder="Filter by path…" />
-        <select id="gradeFilter">
-          <option value="">All grades</option>
-          <option value="A">A</option>
-          <option value="B">B</option>
-          <option value="C">C</option>
-          <option value="D">D</option>
-          <option value="F">F</option>
-        </select>
-        <select id="sortSelect">
-          <option value="score-asc">Lowest score first</option>
-          <option value="score-desc">Highest score first</option>
-          <option value="issues-desc">Most issues first</option>
-          <option value="path-asc">Path (a–z)</option>
-          <option value="method-asc">Method</option>
-        </select>
-        <span class="result-count" id="resultCount"></span>
-      </div>
-      <div class="pagination" id="paginationTop" hidden></div>
-      <div class="table-scroll">
-        <table id="endpointTable">
-          <thead>
-            <tr>
-              <th class="col-method">Method</th>
-              <th class="col-path">Path</th>
-              <th class="col-score">Score</th>
-              <th class="col-grade">Grade</th>
-              <th class="col-issues">Issues</th>
-            </tr>
-          </thead>
-          <tbody id="endpointTbody"></tbody>
-        </table>
-      </div>
-      <div class="empty-state" id="emptyState" hidden>No endpoints match the current filter.</div>
-      <div class="pagination" id="paginationBottom" hidden></div>
-    </section>
+    <div class="report-tab-panel" id="tabPanelTerminology" role="tabpanel" hidden>
+      <section class="card terminology-card">
+        <div class="field-label">Terminology consistency</div>
+        <div class="terminology-summary" id="terminologySummary"></div>
+        <div class="table-controls" id="terminologyControls">
+          <input type="text" id="terminologySearchInput" placeholder="Filter by field name…" />
+          <select id="terminologySortSelect">
+            <option value="occurrences-desc">Most occurrences first</option>
+            <option value="descriptions-desc">Most distinct descriptions first</option>
+            <option value="name-asc">Name (a–z)</option>
+          </select>
+          <span class="result-count" id="terminologyResultCount"></span>
+        </div>
+        <div class="pagination" id="terminologyPaginationTop" hidden></div>
+        <div class="terminology-items" id="terminologyList"></div>
+        <div class="empty-state" id="terminologyEmptyState" hidden>No field names match the current filter.</div>
+        <div class="pagination" id="terminologyPaginationBottom" hidden></div>
+      </section>
+    </div>
   </section>
 
   <footer>
@@ -2139,6 +2215,17 @@
     if (typeof obj.overallScore !== "number" || typeof obj.overallGrade !== "string" || !Array.isArray(obj.endpoints)) {
       return "This file doesn't look like a spec-audit JSON export – expected fields (\"overallScore\", \"overallGrade\", \"endpoints\") are missing.";
     }
+    // diffReports() assumes categoryBreakdown/disabledChecks are arrays of
+    // entries (e.g. { category, count }), not a { category: count } map –
+    // that's an easy shape to get wrong hand-constructing a file, and
+    // without this check it slips past validation only to throw later,
+    // inside diffReports, with nothing shown to the user.
+    if (obj.categoryBreakdown != null && !Array.isArray(obj.categoryBreakdown)) {
+      return "This file doesn't look like a spec-audit JSON export – \"categoryBreakdown\" should be a list of { category, count } entries, not an object.";
+    }
+    if (obj.disabledChecks != null && !Array.isArray(obj.disabledChecks)) {
+      return "This file doesn't look like a spec-audit JSON export – \"disabledChecks\" should be a list, not an object.";
+    }
     return null;
   }
 
@@ -2360,18 +2447,27 @@
   var errorCard = document.getElementById("errorCard");
   var errorText = document.getElementById("errorText");
   var reportSection = document.getElementById("reportSection");
+  var reportTabBtns = document.querySelectorAll(".report-tab");
+  var tabPanelEndpoints = document.getElementById("tabPanelEndpoints");
+  var tabPanelTerminology = document.getElementById("tabPanelTerminology");
 
   var gradeBadge = document.getElementById("gradeBadge");
   var scoreNum = document.getElementById("scoreNum");
   var endpointCountEl = document.getElementById("endpointCount");
   var issueCountEl = document.getElementById("issueCount");
   var breakdownEl = document.getElementById("breakdown");
+  var terminologyBreakdownEl = document.getElementById("terminologyBreakdown");
   var methodologyToggle = document.getElementById("methodologyToggle");
   var methodologyPanel = document.getElementById("methodologyPanel");
   var exportJsonBtn = document.getElementById("exportJsonBtn");
   var exportHtmlBtn = document.getElementById("exportHtmlBtn");
   var terminologySummaryEl = document.getElementById("terminologySummary");
+  var terminologyControlsEl = document.getElementById("terminologyControls");
+  var terminologySearchInput = document.getElementById("terminologySearchInput");
+  var terminologySortSelect = document.getElementById("terminologySortSelect");
+  var terminologyResultCount = document.getElementById("terminologyResultCount");
   var terminologyListEl = document.getElementById("terminologyList");
+  var terminologyEmptyState = document.getElementById("terminologyEmptyState");
 
   var searchInput = document.getElementById("searchInput");
   var gradeFilter = document.getElementById("gradeFilter");
@@ -2449,7 +2545,25 @@
   var diffNextPageBtns = document.querySelectorAll(".diff-pagination-next");
   var diffLastPageBtns = document.querySelectorAll(".diff-pagination-last");
 
+  var TERMINOLOGY_PAGINATION_HTML = buildPaginationHtml("terminology-pagination");
+  var terminologyPaginationContainers = [document.getElementById("terminologyPaginationTop"), document.getElementById("terminologyPaginationBottom")];
+  terminologyPaginationContainers.forEach(function (el) { el.innerHTML = TERMINOLOGY_PAGINATION_HTML; });
+
+  var terminologyPageIndicators = document.querySelectorAll(".terminology-pagination-indicator");
+  var terminologyFirstPageBtns = document.querySelectorAll(".terminology-pagination-first");
+  var terminologyPrevPageBtns = document.querySelectorAll(".terminology-pagination-prev");
+  var terminologyNextPageBtns = document.querySelectorAll(".terminology-pagination-next");
+  var terminologyLastPageBtns = document.querySelectorAll(".terminology-pagination-last");
+
   var PAGE_SIZE = 25;
+  // Terminology items are far taller than an endpoint-table row (each renders
+  // several description blocks with occurrence counts and example locations),
+  // so it gets its own, smaller page size – 25 of these would make the tab
+  // page much longer than the Endpoints tab's equivalent page. Measured
+  // against the GitHub example spec: at 8/page the terminology card ran
+  // ~2390px tall vs. the endpoint table's ~1370px; 4/page lands at ~1335px,
+  // the closest match to a comparable page height.
+  var TERMINOLOGY_PAGE_SIZE = 4;
 
   var state = {
     endpoints: [],
@@ -2470,7 +2584,9 @@
           .map(function (s) { return s.key; })
       )
     ),
-    terminologyIssues: []
+    terminologyIssues: [],
+    terminologyView: [],
+    terminologyPage: 1
   };
 
   var diffState = {
@@ -2611,30 +2727,133 @@
     }).join("");
   }
 
-  // Renders from state.terminologyIssues, which is only populated when the
-  // "spec-wide-terminology" check is enabled – so a disabled check and a
+  // Single-row summary shown in the always-visible summary card, alongside
+  // "Endpoint issues" – same breakdown-row visual language, sized to fill
+  // its own bar since there's only one "category" here (unlike the per-
+  // endpoint breakdown, terminology consistency isn't split further).
+  // Same explanation that used to sit as static text above the terminology
+  // list – moved behind an info icon so it follows the exact same
+  // click-to-expand pattern as the category breakdown's info icons instead
+  // of always taking up space.
+  var TERMINOLOGY_EXPLANATION = "Checks whether the same parameter or property name is described consistently everywhere it appears in the spec – a spec-wide comparison, not tied to any one endpoint, so it doesn't affect endpoint scores.";
+
+  function renderTerminologyBreakdown() {
+    var enabled = state.enabledCategories.has("spec-wide-terminology");
+    if (!enabled) {
+      terminologyBreakdownEl.innerHTML = '<div class="breakdown-empty">This check is currently disabled.</div>';
+      return;
+    }
+    var count = state.terminologyIssues.length;
+    if (count === 0) {
+      terminologyBreakdownEl.innerHTML = '<div class="breakdown-empty">No terminology inconsistencies found.</div>';
+      return;
+    }
+    var infoHtml = '<button type="button" class="info-btn cat-info-btn" data-category="terminology" aria-expanded="false" aria-controls="explain-terminology" aria-label="What this checks">' + ICON_INFO_SVG + '</button>';
+    terminologyBreakdownEl.innerHTML =
+      '<div class="breakdown-row">' +
+      '<span class="breakdown-label-wrap"><span class="breakdown-label">' + buildLabelHtml("Inconsistent field descriptions", infoHtml) + '</span></span>' +
+      '<span class="breakdown-bar-track"><span class="breakdown-bar-fill" style="width:100%;background:var(--accent)"></span></span>' +
+      '<span class="breakdown-count">' + count + '</span>' +
+      '</div>' +
+      '<div class="breakdown-explain" id="explain-terminology" hidden><p>' + esc(TERMINOLOGY_EXPLANATION) + '</p></div>';
+  }
+
+  // Clicking the terminology summary jumps to the Terminology issues tab –
+  // the "filter" analog of clicking a category breakdown row, just without a
+  // specific sub-filter to apply since this summary is a single aggregate.
+  // The info icon reuses toggleBreakdownExplain exactly as the category
+  // breakdown does, so it's checked first and short-circuits the tab jump.
+  terminologyBreakdownEl.addEventListener("click", function (e) {
+    var infoBtn = e.target.closest(".cat-info-btn");
+    if (infoBtn) {
+      e.stopPropagation();
+      toggleBreakdownExplain(infoBtn);
+      return;
+    }
+    if (!e.target.closest(".breakdown-row")) return;
+    activateTab("terminology-issues");
+    tabPanelTerminology.scrollIntoView({ block: "start" });
+  });
+
+  // Total occurrences across all of a flagged name's distinct descriptions –
+  // used as the default sort key, since it's not stored as its own field.
+  function terminologyTotalOccurrences(item) {
+    return item.descriptions.reduce(function (s, d) { return s + d.occurrenceCount; }, 0);
+  }
+
+  // Same filter-then-sort-then-paginate architecture as the endpoint table's
+  // applyFilters(): operates on the full state.terminologyIssues array, not
+  // just the current page, so pagination is always computed from the
+  // filtered/sorted result (state.terminologyView).
+  function applyTerminologyFilters() {
+    var search = terminologySearchInput.value.trim().toLowerCase();
+    var sort = terminologySortSelect.value;
+    var view = state.terminologyIssues.filter(function (item) {
+      if (search && item.name.toLowerCase().indexOf(search) === -1) return false;
+      return true;
+    });
+
+    view.sort(function (a, b) {
+      switch (sort) {
+        case "descriptions-desc": return b.descriptions.length - a.descriptions.length;
+        case "name-asc": return a.name.localeCompare(b.name);
+        case "occurrences-desc":
+        default: return terminologyTotalOccurrences(b) - terminologyTotalOccurrences(a);
+      }
+    });
+
+    state.terminologyView = view;
+    state.terminologyPage = 1;
+    renderTerminology();
+  }
+
+  // Renders from state.terminologyIssues (the full set, for the headline
+  // stat and the search/sort controls) and state.terminologyView (the
+  // filtered/sorted subset that's actually paginated) – only populated when
+  // the "spec-wide-terminology" check is enabled, so a disabled check and a
   // clean spec both need their own distinct empty state rather than just
-  // showing "0 found" for either.
+  // showing "0 found" for either. Paginated the same way as the endpoint
+  // table, just with its own smaller TERMINOLOGY_PAGE_SIZE (see above) since
+  // a large spec can flag 100s of names and each item is much taller.
   function renderTerminology() {
     var enabled = state.enabledCategories.has("spec-wide-terminology");
 
     if (!enabled) {
       terminologySummaryEl.innerHTML = '<div class="terminology-empty">This check is currently disabled.</div>';
+      terminologyControlsEl.hidden = true;
       terminologyListEl.innerHTML = "";
+      terminologyEmptyState.hidden = true;
+      terminologyPaginationContainers.forEach(function (el) { el.hidden = true; });
       return;
     }
 
-    var issues = state.terminologyIssues;
-    if (issues.length === 0) {
+    var allIssues = state.terminologyIssues;
+    if (allIssues.length === 0) {
       terminologySummaryEl.innerHTML = '<div class="terminology-empty">No terminology inconsistencies found.</div>';
+      terminologyControlsEl.hidden = true;
       terminologyListEl.innerHTML = "";
+      terminologyEmptyState.hidden = true;
+      terminologyPaginationContainers.forEach(function (el) { el.hidden = true; });
       return;
     }
 
-    terminologySummaryEl.innerHTML = '<div class="terminology-summary-line">' + issues.length +
-      ' field name' + (issues.length === 1 ? "" : "s") + ' with inconsistent descriptions across the spec.</div>';
+    terminologyControlsEl.hidden = false;
+    terminologySummaryEl.innerHTML = '<div class="terminology-summary-line">' + allIssues.length +
+      ' field name' + (allIssues.length === 1 ? "" : "s") + ' with inconsistent descriptions across the spec.</div>';
 
-    terminologyListEl.innerHTML = issues.map(function (item) {
+    var view = state.terminologyView;
+    terminologyResultCount.textContent = view.length + " of " + allIssues.length + " field names";
+    terminologyEmptyState.hidden = view.length !== 0;
+    terminologyPaginationContainers.forEach(function (el) { el.hidden = view.length === 0; });
+
+    var totalPages = Math.max(1, Math.ceil(view.length / TERMINOLOGY_PAGE_SIZE));
+    if (state.terminologyPage > totalPages) state.terminologyPage = totalPages;
+    if (state.terminologyPage < 1) state.terminologyPage = 1;
+
+    var startIdx = (state.terminologyPage - 1) * TERMINOLOGY_PAGE_SIZE;
+    var pageItems = view.slice(startIdx, startIdx + TERMINOLOGY_PAGE_SIZE);
+
+    terminologyListEl.innerHTML = pageItems.map(function (item) {
       var descHtml = item.descriptions.map(function (d) {
         var examples = d.locations.map(function (loc) { return esc(loc); }).join(", ");
         return '<div class="issue">' +
@@ -2650,7 +2869,78 @@
         '<div class="issue-list">' + descHtml + '</div>' +
         '</div>';
     }).join("");
+
+    var indicatorText = "Page " + state.terminologyPage + " of " + totalPages;
+    terminologyPageIndicators.forEach(function (el) { el.textContent = indicatorText; });
+    terminologyFirstPageBtns.forEach(function (el) { el.disabled = state.terminologyPage <= 1; });
+    terminologyPrevPageBtns.forEach(function (el) { el.disabled = state.terminologyPage <= 1; });
+    terminologyNextPageBtns.forEach(function (el) { el.disabled = state.terminologyPage >= totalPages; });
+    terminologyLastPageBtns.forEach(function (el) { el.disabled = state.terminologyPage >= totalPages; });
   }
+
+  function scrollToTerminologyTop() {
+    terminologySummaryEl.scrollIntoView({ block: "start" });
+  }
+
+  terminologyFirstPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (state.terminologyPage <= 1) return;
+      state.terminologyPage = 1;
+      renderTerminology();
+      scrollToTerminologyTop();
+    });
+  });
+
+  terminologyPrevPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (state.terminologyPage <= 1) return;
+      state.terminologyPage -= 1;
+      renderTerminology();
+      scrollToTerminologyTop();
+    });
+  });
+
+  terminologyNextPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var totalPages = Math.max(1, Math.ceil(state.terminologyView.length / TERMINOLOGY_PAGE_SIZE));
+      if (state.terminologyPage >= totalPages) return;
+      state.terminologyPage += 1;
+      renderTerminology();
+      scrollToTerminologyTop();
+    });
+  });
+
+  terminologyLastPageBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var totalPages = Math.max(1, Math.ceil(state.terminologyView.length / TERMINOLOGY_PAGE_SIZE));
+      if (state.terminologyPage >= totalPages) return;
+      state.terminologyPage = totalPages;
+      renderTerminology();
+      scrollToTerminologyTop();
+    });
+  });
+
+  // Report-level tabs: Endpoints (diff/compare + endpoint table, default) and
+  // Terminology (the spec-wide check). The summary card above stays visible
+  // regardless of tab; only this detail content switches. Single source of
+  // truth for switching tabs, since the breakdown click handler below also
+  // needs to jump to the Endpoints tab (clicking a category while on the
+  // Terminology tab should both switch tabs and filter the table).
+  function activateTab(tabName) {
+    reportTabBtns.forEach(function (b) {
+      var isActive = b.dataset.tab === tabName;
+      b.classList.toggle("active", isActive);
+      b.setAttribute("aria-selected", String(isActive));
+    });
+    tabPanelEndpoints.hidden = tabName !== "endpoint-issues";
+    tabPanelTerminology.hidden = tabName !== "terminology-issues";
+  }
+
+  reportTabBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      activateTab(btn.dataset.tab);
+    });
+  });
 
   function toggleBreakdownExplain(btn) {
     var category = btn.dataset.category;
@@ -2853,6 +3143,9 @@
   gradeFilter.addEventListener("change", applyFilters);
   sortSelect.addEventListener("change", applyFilters);
 
+  terminologySearchInput.addEventListener("input", applyTerminologyFilters);
+  terminologySortSelect.addEventListener("change", applyTerminologyFilters);
+
   methodologyToggle.addEventListener("click", function () {
     var expanded = methodologyToggle.getAttribute("aria-expanded") === "true";
     methodologyToggle.setAttribute("aria-expanded", String(!expanded));
@@ -2868,6 +3161,7 @@
     }
     var row = e.target.closest(".breakdown-row");
     if (!row) return;
+    activateTab("endpoint-issues");
     setCategoryFilter(row.dataset.category);
   });
 
@@ -2965,8 +3259,12 @@
             state.terminologyIssues = state.enabledCategories.has("spec-wide-terminology")
               ? SpecAuditEngine.findTerminologyInconsistencies(parsed.spec)
               : [];
+            state.terminologyPage = 1;
             renderSummary(endpoints);
-            renderTerminology();
+            renderTerminologyBreakdown();
+            terminologySearchInput.value = "";
+            terminologySortSelect.value = "occurrences-desc";
+            applyTerminologyFilters();
             updateCategoryFilterIndicator();
             searchInput.value = "";
             gradeFilter.value = "";
@@ -3273,6 +3571,8 @@
       '  .terminology-name { font-weight: 600; color: var(--text); font-size: 14px; }\n' +
       '  .terminology-count { font-size: 12px; color: var(--text-muted); white-space: nowrap; }\n' +
       '  footer { margin-top: 32px; font-size: 12px; color: var(--text-muted); text-align: center; }\n' +
+      '  .snapshot-section-heading { font-size: 18px; font-weight: 600; color: var(--text); margin: 32px 0 16px; }\n' +
+      '  .snapshot-section-heading:first-of-type { margin-top: 8px; }\n' +
       '</style>\n' +
       '</head>\n' +
       '<body>\n' +
@@ -3289,20 +3589,22 @@
       '<div class="stat"><span class="value-label">Overall score</span><span class="stat-value">' + summary.overallScore + '<span class="stat-den">/100</span></span></div>\n' +
       '</div>\n' +
       '<div class="summary-group">\n' +
-      '<div class="stat"><span class="value-label">endpoints audited</span><span class="stat-value">' + endpoints.length + '</span></div>\n' +
-      '<div class="stat"><span class="value-label">issues found</span><span class="stat-value">' + summary.totalIssues + '</span></div>\n' +
+      '<div class="stat"><span class="value-label">Endpoints audited</span><span class="stat-value">' + endpoints.length + '</span></div>\n' +
+      '<div class="stat"><span class="value-label">Issues found</span><span class="stat-value">' + summary.totalIssues + '</span></div>\n' +
       '</div>\n' +
       '</div>\n' +
-      '<div class="field-label">Issues by category</div>\n' +
+      '<div class="field-label">Endpoint issues</div>\n' +
       breakdownHtml +
       '\n</section>\n' +
-      '<section class="card">\n' +
-      '<div class="field-label">Terminology consistency</div>\n' +
-      terminologyHtml +
-      '\n</section>\n' +
+      '<h2 class="snapshot-section-heading">Endpoint issues</h2>\n' +
       '<section class="card table-card">\n' +
       '<div class="field-label">' + endpoints.length + ' endpoint' + (endpoints.length === 1 ? "" : "s") + '</div>\n' +
       rowsHtml +
+      '\n</section>\n' +
+      '<h2 class="snapshot-section-heading">Terminology issues</h2>\n' +
+      '<section class="card">\n' +
+      '<div class="field-label">Terminology consistency</div>\n' +
+      terminologyHtml +
       '\n</section>\n' +
       '<footer>Generated by OpenAPI Spec Audit – read-only snapshot, not connected to the live tool.</footer>\n' +
       '</div>\n' +
@@ -3567,7 +3869,20 @@
       return;
     }
     var current = buildReportPayload();
-    diffState.diff = SpecAuditEngine.diffReports(diffState.previousReport, current);
+    // validateExportedReport() catches the shape problems we know about, but
+    // this is a defensive backstop: if a previous-report file has some other
+    // unanticipated mismatch that slips past validation and diffReports
+    // throws, the failure should surface as a visible error, not disappear
+    // silently (this fires inside a FileReader.onload callback, so an
+    // uncaught exception here has no other way to reach the user).
+    try {
+      diffState.diff = SpecAuditEngine.diffReports(diffState.previousReport, current);
+    } catch (e) {
+      showDiffError("Couldn't compare against this report – it doesn't match the expected format (" + e.message + ").");
+      diffResultsEl.hidden = true;
+      diffState.diff = null;
+      return;
+    }
     diffResultsEl.hidden = false;
     renderDiffSummary(diffState.diff);
     diffSearchInput.value = "";

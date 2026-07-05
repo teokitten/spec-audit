@@ -61,7 +61,7 @@ function printUsage() {
     "\n" +
     "Check keys for --disable/--enable: description, low-quality, examples, errors,\n" +
     "constraints, required, semantic-type-mismatch, semantic-enum-mismatch,\n" +
-    "semantic-dangling-reference\n"
+    "semantic-dangling-reference, spec-wide-terminology\n"
   );
 }
 
@@ -194,10 +194,15 @@ function loadPreviousReport(filePath) {
 // same key. This precedence is documented in the README rather than left
 // implicit.
 function buildEnabledCategories(disableList, enableList) {
-  var allKnownKeys = engine.CONFIGURABLE_CATEGORIES.concat(engine.SEMANTIC_SUBCHECKS.map(function (s) { return s.key; }));
+  var allKnownKeys = engine.CONFIGURABLE_CATEGORIES
+    .concat(engine.SEMANTIC_SUBCHECKS.map(function (s) { return s.key; }))
+    .concat(engine.SPEC_WIDE_CHECKS.map(function (s) { return s.key; }));
 
   var enabled = new Set(engine.CONFIGURABLE_CATEGORIES);
   engine.SEMANTIC_SUBCHECKS.forEach(function (s) {
+    if (s.defaultEnabled) enabled.add(s.key);
+  });
+  engine.SPEC_WIDE_CHECKS.forEach(function (s) {
     if (s.defaultEnabled) enabled.add(s.key);
   });
 
@@ -224,6 +229,8 @@ function buildEnabledCategories(disableList, enableList) {
 // Same shape as the browser tool's "Export JSON" feature (buildReportPayload
 // in index.html) – re-assembled here from the engine's own outputs rather
 // than duplicated, so both surfaces produce identical report files.
+// `terminologyIssues` rides along separately from `endpoints` since it's a
+// spec-wide check result, not owned by any single endpoint.
 function buildReportPayload(auditResult, enabledCategories) {
   var disabledChecks = [];
   engine.CONFIGURABLE_CATEGORIES.forEach(function (c) {
@@ -236,12 +243,18 @@ function buildReportPayload(auditResult, enabledCategories) {
       disabledChecks.push({ key: s.key, category: "semantic", label: s.label });
     }
   });
+  engine.SPEC_WIDE_CHECKS.forEach(function (s) {
+    if (!enabledCategories.has(s.key)) {
+      disabledChecks.push({ key: s.key, category: "spec-wide", label: s.label });
+    }
+  });
   return {
     overallScore: auditResult.overallScore,
     overallGrade: auditResult.overallGrade,
     totalIssues: auditResult.totalIssues,
     categoryBreakdown: auditResult.categoryBreakdown,
     disabledChecks: disabledChecks,
+    terminologyIssues: auditResult.terminologyIssues || [],
     endpoints: auditResult.endpoints.map(function (e) {
       return {
         path: e.path,
@@ -282,6 +295,37 @@ function printSummary(payload) {
       console.log("  " + r.label + padding + r.count);
     });
   }
+  console.log("");
+
+  printTerminology(payload);
+}
+
+// Spec-wide, not per-endpoint, so it's reported separately from the category
+// breakdown above rather than folded into it. Kept compact (one line per
+// flagged name) since a large spec can flag dozens of names - full
+// descriptions and example locations are in --json output.
+function printTerminology(payload) {
+  var disabledTerminology = payload.disabledChecks.some(function (c) { return c.key === "spec-wide-terminology"; });
+
+  console.log("Terminology consistency");
+  if (disabledTerminology) {
+    console.log("  This check is currently disabled.");
+    console.log("");
+    return;
+  }
+  if (payload.terminologyIssues.length === 0) {
+    console.log("  No terminology inconsistencies found.");
+    console.log("");
+    return;
+  }
+
+  console.log("  " + payload.terminologyIssues.length + " field name" +
+    (payload.terminologyIssues.length === 1 ? "" : "s") + " with inconsistent descriptions across the spec.");
+  console.log("");
+  payload.terminologyIssues.forEach(function (item) {
+    var counts = item.descriptions.map(function (d) { return d.occurrenceCount; }).join(", ");
+    console.log("  `" + item.name + "` - " + item.descriptions.length + " distinct descriptions (" + counts + " occurrences)");
+  });
   console.log("");
 }
 

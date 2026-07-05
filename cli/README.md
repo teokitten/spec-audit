@@ -121,9 +121,13 @@ panel — every check can be switched either direction, using the same keys:
 - `semantic-type-mismatch` — description implies a different type than the schema
 - `semantic-enum-mismatch` — description doesn't mention any of a parameter's enum values
 - `semantic-dangling-reference` — description references a field name that doesn't exist on the endpoint
+- `spec-wide-terminology` — the same parameter/property name has meaningfully different descriptions in different places in the spec (on by default; see "Terminology consistency" below)
 
 A disabled category is excluded from scoring entirely, not just hidden from
-the report — the same behavior as the browser tool.
+the report — the same behavior as the browser tool. `spec-wide-terminology` is
+the one exception: it's a spec-wide check, not owned by any endpoint, so
+disabling it removes it from the report but there's no per-endpoint score for
+it to affect in the first place.
 
 ```sh
 node audit.js openapi.json --disable=constraints,required
@@ -165,6 +169,28 @@ ignores it, rather than silently doing nothing:
 ```
 Warning: unknown check key "typo-category" in --disable, ignoring.
 ```
+
+### Terminology consistency
+
+Unlike the other 8 checks, `spec-wide-terminology` compares descriptions for
+the same parameter/property name **across the entire spec**, not within one
+endpoint — e.g. if `per_page` is described one way on one endpoint and a
+meaningfully different way on another, that's flagged even though neither
+endpoint's own documentation is individually wrong. It's on by default and
+doesn't affect any endpoint's score (it isn't owned by one endpoint to begin
+with). Both the terminal summary and `--json` output include it:
+
+```
+Terminology consistency
+  8 field names with inconsistent descriptions across the spec.
+
+  `per_page` - 2 distinct descriptions (12, 8 occurrences)
+  `status` - 3 distinct descriptions (45, 12, 3 occurrences)
+```
+
+The terminal output is intentionally compact (name, distinct-description
+count, occurrence counts) — full description text and example locations for
+each name are in `--json` output's `terminologyIssues` array.
 
 ### `--fail-under`
 

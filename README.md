@@ -39,21 +39,15 @@ correctness.
 
 ## Limitations
 
-- The under-10-character "likely useless" description heuristic can flag short
-  but accurate text (e.g. standard HTTP status descriptions like "Not Found")
-  alongside genuine placeholder content.
-- The dangling-field-reference semantic check has a high false-positive rate on
-  specs that use backticks for enum value lists or OAuth scope names in prose –
-  off by default for this reason, can be enabled via config or
-  `--enable=semantic-dangling-reference` in the CLI.
-- The terminology-consistency check can still flag generic property names that
-  happen to have few description variants but represent genuinely different
-  concepts sharing a name, despite the stoplist and distinct-description cap in
-  place to filter out the most common cases.
-- All checks are heuristics based on pattern-matching against spec structure and
-  text, not true semantic understanding – they're designed to under-flag rather
-  than over-flag, but no heuristic is perfect, and results should inform a human
-  review, not replace one.
+- Short descriptions: a description can be short but still correct (like "Not
+  Found") – the tool may flag it anyway just for being brief.
+- Field-name mentions: one check looks for field names mentioned in the text.
+  It's easily confused by lists of allowed values, so it's off by default.
+- Same word, different meaning: another check looks for a term described
+  inconsistently across the spec. Sometimes a word is used for two different
+  things on purpose – the tool can't always tell the difference.
+- Bottom line: these are automated guesses, not certainties. Use them to guide
+  a review, not to replace one.
 
 ## Running locally
 
