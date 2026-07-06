@@ -85,3 +85,4 @@ regression (`--fail-under`).
 ## Built by
 
 [Teo Moldovanu](https://teokitten.github.io)
+
