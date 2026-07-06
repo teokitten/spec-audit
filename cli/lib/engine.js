@@ -1095,6 +1095,16 @@
     return result;
   }
 
+  // Below this fraction of the previous report's endpoints being found at
+  // all in the current one, the two reports are treated as coming from
+  // different specs entirely rather than a changed version of the same one
+  // – see diffReports' overlap-ratio computation below. Chosen because even
+  // a heavily-rewritten same-spec major version tends to keep at least a
+  // handful of stable routes in common (a health check, auth endpoints, a
+  // core resource that survived the rewrite); overlap this low is a much
+  // stronger signal of "wrong file" than of "a lot changed since last time".
+  var SPEC_MISMATCH_OVERLAP_THRESHOLD = 0.1;
+
   function diffReports(previous, current) {
     var prevByKey = {};
     previous.endpoints.forEach(function (e) { prevByKey[e.method + " " + e.path] = e; });
@@ -1175,6 +1185,31 @@
     var currDisabled = (current.disabledChecks || []).map(function (d) { return d.key || d.category; }).sort();
     var configDiffers = JSON.stringify(prevDisabled) !== JSON.stringify(currDisabled);
 
+    // Spec-mismatch detection: works retroactively on any export, with or
+    // without specIdentity (added later, see specIdentityFor below), via two
+    // independent signals –
+    //  1. Title mismatch: only trustworthy when BOTH reports actually have a
+    //     specIdentity.title (older exports won't), so this alone can't
+    //     detect a mismatch against a pre-specIdentity export.
+    //  2. Overlap ratio: what fraction of the previous report's endpoints
+    //     (by method+path) exist at all in the current one – computed from
+    //     data every export has always had, so this is the fallback that
+    //     still works against older exports. Below SPEC_MISMATCH_OVERLAP_THRESHOLD
+    //     (10%) is treated as "different spec, not just a changed version of
+    //     the same one": even a heavily rewritten same-spec major version
+    //     tends to keep at least a handful of stable routes in common (a
+    //     health check, auth endpoints, etc.), so overlap this low is a much
+    //     stronger signal of "wrong file" than of "a lot changed".
+    var prevKeys = Object.keys(prevByKey);
+    var overlapCount = prevKeys.filter(function (k) { return !!currByKey[k]; }).length;
+    var overlapRatio = prevKeys.length > 0 ? overlapCount / prevKeys.length : 1;
+    var titleMismatch = !!(
+      previous.specIdentity && current.specIdentity &&
+      previous.specIdentity.title && current.specIdentity.title &&
+      previous.specIdentity.title !== current.specIdentity.title
+    );
+    var specMismatch = titleMismatch || overlapRatio < SPEC_MISMATCH_OVERLAP_THRESHOLD;
+
     return {
       previousScore: previous.overallScore,
       currentScore: current.overallScore,
@@ -1189,8 +1224,39 @@
       configDiffers: configDiffers,
       previousDisabledChecks: previous.disabledChecks || [],
       currentDisabledChecks: current.disabledChecks || [],
+      overlapRatio: overlapRatio,
+      specMismatch: specMismatch,
+      specMismatchReason: specMismatch ? (titleMismatch ? "title" : "overlap") : null,
+      previousSpecIdentity: previous.specIdentity || null,
+      currentSpecIdentity: current.specIdentity || null,
       endpoints: endpoints
     };
+  }
+
+  // Plain-text warning for the UI/CLI to display verbatim when
+  // diff.specMismatch is true – one shared implementation so both surfaces
+  // word this identically instead of drifting apart.
+  function specMismatchMessage(diff) {
+    if (!diff || !diff.specMismatch) return null;
+    if (diff.specMismatchReason === "title") {
+      return "These reports appear to be from different specs (\"" + diff.previousSpecIdentity.title + "\" vs \"" + diff.currentSpecIdentity.title + "\") – comparison results may not be meaningful.";
+    }
+    var pct = Math.round(diff.overlapRatio * 100);
+    return "These reports appear to be from different specs (" + pct + "% of endpoints match) – comparison results may not be meaningful.";
+  }
+
+  // Pulled from spec.info at export time, not audit time, so it always
+  // reflects whatever spec text was actually parsed. Title/version are the
+  // simplest human-recognizable identity signal a spec offers – purely
+  // additive (an export missing this, e.g. one from before this field
+  // existed, or a spec without an info.title/version at all, just gets
+  // null), so nothing downstream may assume it's present.
+  function specIdentityFor(spec) {
+    if (!spec || typeof spec !== "object" || !spec.info || typeof spec.info !== "object") return null;
+    var title = typeof spec.info.title === "string" ? spec.info.title.trim() : "";
+    var version = typeof spec.info.version === "string" ? spec.info.version.trim() : (typeof spec.info.version === "number" ? String(spec.info.version) : "");
+    if (!title && !version) return null;
+    return { title: title || null, version: version || null };
   }
 
   // ---------------------------------------------------------------------
@@ -1235,7 +1301,8 @@
       totalIssues: summary.totalIssues,
       categoryBreakdown: summary.categoryBreakdown,
       terminologyIssues: terminologyIssues,
-      namingConventionIssue: namingConventionIssue
+      namingConventionIssue: namingConventionIssue,
+      specIdentity: specIdentityFor(parsed.spec)
     };
   }
 
@@ -1261,5 +1328,7 @@ module.exports = {
   summarize: summarize,
   validateExportedReport: validateExportedReport,
   diffReports: diffReports,
-  auditSpec: auditSpec
+  auditSpec: auditSpec,
+  specIdentityFor: specIdentityFor,
+  specMismatchMessage: specMismatchMessage
 };

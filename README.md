@@ -23,12 +23,14 @@ correctness.
 ## How it works
 
 - Paste, fetch by URL, or load a sample OpenAPI 3.0/3.1 spec
-- Runs seven checks per endpoint: missing/low-quality descriptions, missing
+- Runs checks per endpoint across two kinds of problems: structural issues
+  that always count toward the score (unresolvable $ref references,
+  endpoints that couldn't be fully parsed) and editorial checks that can be
+  individually enabled or disabled (missing/low-quality descriptions, missing
   examples, undocumented error responses, missing type constraints, ambiguous
-  required status, unresolvable $ref references, and semantic inconsistencies
-  (type-description mismatches and enum-description mismatches; a
-  dangling-field-reference check is available but off by default due to a high
-  false-positive rate on real-world specs)
+  required status, and semantic inconsistencies – type-description mismatches,
+  enum-description mismatches, and an off-by-default dangling-field-reference
+  check with a high false-positive rate on real-world specs)
 - Each check category can be individually enabled or disabled – disabling a
   category excludes it from scoring entirely, not just from the report
 - Each endpoint gets a weighted score (0–100); checks that block a developer

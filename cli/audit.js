@@ -256,6 +256,7 @@ function buildReportPayload(auditResult, enabledCategories) {
     disabledChecks: disabledChecks,
     terminologyIssues: auditResult.terminologyIssues || [],
     namingConventionIssue: auditResult.namingConventionIssue || null,
+    specIdentity: auditResult.specIdentity || null,
     endpoints: auditResult.endpoints.map(function (e) {
       return {
         path: e.path,
@@ -450,6 +451,13 @@ function main() {
       } catch (err) {
         fail(err.message);
         return;
+      }
+      // Printed to stderr, ahead of (and independent of) the actual
+      // comparison output on stdout – a --json consumer piping stdout still
+      // sees this on the terminal, and it never ends up mixed into the JSON
+      // itself or the text summary.
+      if (diff.specMismatch) {
+        console.error(paint(engine.specMismatchMessage(diff), COLOR.yellow));
       }
     }
 

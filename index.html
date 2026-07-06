@@ -235,6 +235,25 @@
     flex-shrink: 0;
   }
 
+  /* Always-on structural checks (unresolvable references, parse errors) –
+     shown checked and locked rather than absent, so the panel visibly lists
+     every category-level check that counts toward the score, not just the
+     configurable ones. Reduced opacity + a lock icon read as "can't be
+     changed" on their own, no separate explanatory note needed. */
+  .config-checkbox-locked {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .config-checkbox-locked input {
+    cursor: default;
+  }
+  .config-checkbox-locked svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
   .config-note {
     font-size: 13px;
     line-height: 1.6;
@@ -243,35 +262,21 @@
     margin: 14px 0 0;
   }
 
-  .config-subgroup {
-    grid-column: 1 / -1;
-    border: 1px solid var(--divider);
-    border-radius: 8px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  /* Checkbox changes only mutate state.enabledCategories – nothing re-runs
+     until this is clicked, so batching several toggles doesn't re-audit on
+     every single click. */
+  .config-apply-btn {
+    margin-top: 14px;
+    padding: 8px 16px;
+    font-size: 13px;
   }
 
-  .config-subgroup-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .config-specwide-section {
-    border-top: 1px solid var(--divider);
-    margin-top: 16px;
-    padding-top: 16px;
-  }
-  .config-specwide-section .field-label {
-    margin-bottom: 8px;
-  }
-
-  .config-subcheck {
-    padding-left: 2px;
+  /* Select all / Deselect all – same mutate-only-on-click behavior as any
+     other checkbox here, still requires Apply and re-run to take effect. */
+  .config-toggle-all-btn {
+    margin-bottom: 14px;
+    padding: 6px 12px;
+    font-size: 12px;
   }
 
   @media (max-width: 520px) {
@@ -306,6 +311,11 @@
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
+    /* The global `button { border-radius: 8px }` rule still applies here
+       (border: none doesn't reset border-radius, a separate property) –
+       left unset, it curves this bottom-only border around the button's
+       rounded corners instead of rendering a clean straight underline. */
+    border-radius: 0;
     color: var(--text-muted);
     font-size: 14px;
     font-weight: 500;
@@ -329,17 +339,21 @@
   /* Spec-wide checks: terminology + naming convention */
 
   /* Field-descriptions content and the naming-convention detail now live in
-     one card (see #terminologyCard), not two – this divider only appears
-     when both are visible at once (state.terminologyFilter is null/"all"),
-     via the adjacent-sibling selector below. When naming-convention is the
-     only thing showing, #terminologyListArea is [hidden] and this rule
-     doesn't match, so there's no stray divider floating under the controls
-     row with nothing above it to separate from. */
+     one card (see #terminologyCard), not two – naming-convention renders
+     first (a single, fixed section right under the controls row), with
+     field-descriptions' paginated list after it, so paging through that
+     list never moves or re-renders naming-convention. This divider only
+     appears when both are visible at once (state.terminologyFilter is
+     null/"all"), via the adjacent-sibling selector below. When
+     field-descriptions is the only thing showing, naming-convention is
+     [hidden] and this rule doesn't match, so there's no stray divider
+     floating above the controls row with nothing above it to separate
+     from. */
   .naming-convention-card {
     padding-top: 4px;
   }
 
-  #terminologyListArea:not([hidden]) + .naming-convention-card {
+  .naming-convention-card:not([hidden]) + #terminologyListArea {
     border-top: 1px solid var(--divider);
     margin-top: 24px;
     padding-top: 22px;
@@ -485,12 +499,20 @@
   }
   .diff-results[hidden] { display: none; }
 
+  /* Same bordered-bubble treatment as .demo-banner – each note is its own
+     card, not a shared plain-text block, so two of these stacked (spec
+     mismatch + config mismatch both true at once) read as two distinct
+     items with a visible gap between them, not one repetitive paragraph. */
   .diff-config-note {
     font-size: 13px;
     line-height: 1.6;
     color: var(--accent);
     font-style: italic;
-    margin: 0 0 18px;
+    background: rgba(249, 115, 22, 0.08);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 0 0 12px;
   }
   .diff-config-note[hidden] { display: none; }
 
@@ -593,8 +615,10 @@
 
   /* Same accent-bordered note treatment as .error-card's border and
      .diff-config-note's text color – a state that needs the reader's
-     attention before trusting the numbers below it. */
-  .preview-banner {
+     attention before trusting the numbers below it. Dismissed for good via
+     the × button (see demoBannerCloseBtn), which persists to localStorage
+     so the auto-load never repeats in this browser. */
+  .demo-banner {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -608,37 +632,20 @@
     font-size: 13px;
     color: var(--text-secondary);
   }
-  .preview-banner[hidden] {
+  .demo-banner[hidden] {
     display: none;
   }
-  .preview-banner-btn {
+  .demo-banner-close {
     background: none;
     border: none;
-    padding: 0;
-    font: inherit;
-    font-weight: 600;
-    color: var(--accent);
-    text-decoration: underline;
+    padding: 0 2px;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--text-secondary);
     cursor: pointer;
-    white-space: nowrap;
   }
-  .preview-banner-btn:hover {
-    color: var(--text);
-  }
-
-  /* Same note this points at the report is contradicted without – the input
-     area needs its own, independent "this isn't yours" signal since a user
-     scrolling straight to the textarea would otherwise see it pre-filled
-     with no explanation. Dismissed implicitly by typing/pasting over it
-     (see the specInput "input" listener), not a separate close button. */
-  .preview-input-note {
-    font-size: 13px;
-    font-style: italic;
+  .demo-banner-close:hover {
     color: var(--accent);
-    margin: 0 0 8px;
-  }
-  .preview-input-note[hidden] {
-    display: none;
   }
 
   /* Summary card */
@@ -937,6 +944,14 @@
     padding: 4px 8px 18px;
     flex-wrap: wrap;
   }
+  /* Same specificity (0,1,0) as the browser's default [hidden] { display:
+     none }, so without this override the class rule above wins the cascade
+     (author styles apply after UA styles) and .hidden = true silently does
+     nothing – #terminologyControls hides this way when its check is
+     disabled or found nothing, so this needs to actually work. */
+  .table-controls[hidden] {
+    display: none;
+  }
 
   .table-controls input[type="text"] {
     max-width: 220px;
@@ -1162,11 +1177,10 @@
   <header>
     <h1>OpenAPI Spec Audit</h1>
     <p class="tagline">
-      Provide an OpenAPI 3.0/3.1 spec to get a scored report of its documentation gaps –
-      missing descriptions, absent examples, undocumented error responses, loose type
-      constraints, semantic inconsistencies, and spec-wide naming/description
-      consistency. You can configure checks, export reports, and compare
-      runs over time.
+      Get a scored report of documentation gaps in an OpenAPI 3.0/3.1 spec –
+      missing descriptions, absent examples, undocumented error responses, loose
+      type constraints, semantic inconsistencies, and spec-wide naming/description
+      consistency. Configure checks, export reports, and compare runs over time.
     </p>
     <p class="tagline-note">
       This tool audits documentation quality, not schema correctness; it doesn't render
@@ -1179,7 +1193,6 @@
 
     <div class="input-row">
       <label class="field-label" for="specInput">Paste an OpenAPI spec (JSON or YAML)</label>
-      <p class="preview-input-note" id="previewInputNote" hidden>This is an example spec, shown so you can see the tool in action – not anything you provided. Start typing or paste your own to replace it.</p>
       <textarea id="specInput" spellcheck="false"></textarea>
       <div class="paste-actions">
         <button id="runBtn" class="btn-primary" type="button">Run audit</button>
@@ -1193,13 +1206,9 @@
         <span class="status-msg" id="statusMsg"></span>
       </div>
       <div class="config-panel" id="configPanel" hidden>
-        <div class="field-label">Checks to include</div>
+        <button type="button" class="btn-secondary config-toggle-all-btn" id="configToggleAllBtn">Select all</button>
         <div class="config-checkboxes" id="configCheckboxes"></div>
-        <div class="config-specwide-section">
-          <div class="field-label">Spec-wide checks</div>
-          <div class="config-checkboxes" id="configSpecWideCheckboxes"></div>
-        </div>
-        <p class="config-note">Unresolvable references and parse errors always count toward the score – they're structural problems, not editorial checks.</p>
+        <button type="button" class="btn-primary config-apply-btn" id="configApplyBtn">Apply and re-run</button>
       </div>
     </div>
     <div class="input-row">
@@ -1213,6 +1222,7 @@
       <label class="field-label" for="exampleSelect">Try auditing a sample spec</label>
       <select id="exampleSelect">
         <option value="">Load sample…</option>
+        <option value="demo">Demo example (mock spec)</option>
         <option value="petstore">Swagger Petstore – small, ~13 endpoints</option>
         <option value="github">GitHub REST API – large, 600+ endpoints</option>
         <option value="stripe">Stripe API – large, 500+ endpoints</option>
@@ -1225,9 +1235,9 @@
   </section>
 
   <section id="reportSection" hidden>
-    <div class="preview-banner" id="previewBanner" hidden>
-      <span>Example preview – this is a real audit of a small sample spec, so you can see the tool in action.</span>
-      <button type="button" class="preview-banner-btn" id="previewBannerBtn">Paste your own spec above to audit it</button>
+    <div class="demo-banner" id="demoBanner" hidden>
+      <span>A demo spec was loaded automatically so you can see the tool in action.</span>
+      <button type="button" class="demo-banner-close" id="demoBannerCloseBtn" aria-label="Dismiss">&times;</button>
     </div>
     <section class="card summary-card">
       <div class="summary-actions">
@@ -1320,7 +1330,8 @@
         <p class="diff-error" id="diffError" hidden></p>
 
         <div class="diff-results" id="diffResults" hidden>
-          <p class="diff-config-note" id="diffConfigNote" hidden>Note: these reports used different check configurations – category comparisons may not be meaningful.</p>
+          <p class="diff-config-note" id="diffSpecMismatchNote" hidden></p>
+          <p class="diff-config-note" id="diffConfigNote" hidden>These reports used different check configurations – category comparisons may not be meaningful.</p>
 
           <div class="diff-summary" id="diffSummary"></div>
 
@@ -1421,6 +1432,9 @@
           </select>
           <span class="result-count" id="terminologyResultCount"></span>
         </div>
+        <div class="naming-convention-card" id="namingConventionSection">
+          <div class="naming-convention-detail" id="namingConventionDetail"></div>
+        </div>
         <div id="terminologyListArea">
           <div class="terminology-summary" id="terminologySummary"></div>
           <p class="terminology-intro" id="terminologyIntro" hidden>Each entry below is a field or parameter name whose description differs meaningfully depending on where it appears in the spec. The distinct descriptions found and where each one occurs are listed under the name.</p>
@@ -1428,9 +1442,6 @@
           <div class="terminology-items" id="terminologyList"></div>
           <div class="empty-state" id="terminologyEmptyState" hidden>No field names match the current filter.</div>
           <div class="pagination" id="terminologyPaginationBottom" hidden></div>
-        </div>
-        <div class="naming-convention-card" id="namingConventionSection">
-          <div class="naming-convention-detail" id="namingConventionDetail"></div>
         </div>
       </section>
     </div>
@@ -2543,6 +2554,16 @@
     return result;
   }
 
+  // Below this fraction of the previous report's endpoints being found at
+  // all in the current one, the two reports are treated as coming from
+  // different specs entirely rather than a changed version of the same one
+  // – see diffReports' overlap-ratio computation below. Chosen because even
+  // a heavily-rewritten same-spec major version tends to keep at least a
+  // handful of stable routes in common (a health check, auth endpoints, a
+  // core resource that survived the rewrite); overlap this low is a much
+  // stronger signal of "wrong file" than of "a lot changed since last time".
+  var SPEC_MISMATCH_OVERLAP_THRESHOLD = 0.1;
+
   function diffReports(previous, current) {
     var prevByKey = {};
     previous.endpoints.forEach(function (e) { prevByKey[e.method + " " + e.path] = e; });
@@ -2623,6 +2644,31 @@
     var currDisabled = (current.disabledChecks || []).map(function (d) { return d.key || d.category; }).sort();
     var configDiffers = JSON.stringify(prevDisabled) !== JSON.stringify(currDisabled);
 
+    // Spec-mismatch detection: works retroactively on any export, with or
+    // without specIdentity (added later, see specIdentityFor below), via two
+    // independent signals –
+    //  1. Title mismatch: only trustworthy when BOTH reports actually have a
+    //     specIdentity.title (older exports won't), so this alone can't
+    //     detect a mismatch against a pre-specIdentity export.
+    //  2. Overlap ratio: what fraction of the previous report's endpoints
+    //     (by method+path) exist at all in the current one – computed from
+    //     data every export has always had, so this is the fallback that
+    //     still works against older exports. Below SPEC_MISMATCH_OVERLAP_THRESHOLD
+    //     (10%) is treated as "different spec, not just a changed version of
+    //     the same one": even a heavily rewritten same-spec major version
+    //     tends to keep at least a handful of stable routes in common (a
+    //     health check, auth endpoints, etc.), so overlap this low is a much
+    //     stronger signal of "wrong file" than of "a lot changed".
+    var prevKeys = Object.keys(prevByKey);
+    var overlapCount = prevKeys.filter(function (k) { return !!currByKey[k]; }).length;
+    var overlapRatio = prevKeys.length > 0 ? overlapCount / prevKeys.length : 1;
+    var titleMismatch = !!(
+      previous.specIdentity && current.specIdentity &&
+      previous.specIdentity.title && current.specIdentity.title &&
+      previous.specIdentity.title !== current.specIdentity.title
+    );
+    var specMismatch = titleMismatch || overlapRatio < SPEC_MISMATCH_OVERLAP_THRESHOLD;
+
     return {
       previousScore: previous.overallScore,
       currentScore: current.overallScore,
@@ -2637,8 +2683,39 @@
       configDiffers: configDiffers,
       previousDisabledChecks: previous.disabledChecks || [],
       currentDisabledChecks: current.disabledChecks || [],
+      overlapRatio: overlapRatio,
+      specMismatch: specMismatch,
+      specMismatchReason: specMismatch ? (titleMismatch ? "title" : "overlap") : null,
+      previousSpecIdentity: previous.specIdentity || null,
+      currentSpecIdentity: current.specIdentity || null,
       endpoints: endpoints
     };
+  }
+
+  // Plain-text warning for the UI/CLI to display verbatim when
+  // diff.specMismatch is true – one shared implementation so both surfaces
+  // word this identically instead of drifting apart.
+  function specMismatchMessage(diff) {
+    if (!diff || !diff.specMismatch) return null;
+    if (diff.specMismatchReason === "title") {
+      return "These reports appear to be from different specs (\"" + diff.previousSpecIdentity.title + "\" vs \"" + diff.currentSpecIdentity.title + "\") – comparison results may not be meaningful.";
+    }
+    var pct = Math.round(diff.overlapRatio * 100);
+    return "These reports appear to be from different specs (" + pct + "% of endpoints match) – comparison results may not be meaningful.";
+  }
+
+  // Pulled from spec.info at export time, not audit time, so it always
+  // reflects whatever spec text was actually parsed. Title/version are the
+  // simplest human-recognizable identity signal a spec offers – purely
+  // additive (an export missing this, e.g. one from before this field
+  // existed, or a spec without an info.title/version at all, just gets
+  // null), so nothing downstream may assume it's present.
+  function specIdentityFor(spec) {
+    if (!spec || typeof spec !== "object" || !spec.info || typeof spec.info !== "object") return null;
+    var title = typeof spec.info.title === "string" ? spec.info.title.trim() : "";
+    var version = typeof spec.info.version === "string" ? spec.info.version.trim() : (typeof spec.info.version === "number" ? String(spec.info.version) : "");
+    if (!title && !version) return null;
+    return { title: title || null, version: version || null };
   }
 
   // ---------------------------------------------------------------------
@@ -2683,7 +2760,8 @@
       totalIssues: summary.totalIssues,
       categoryBreakdown: summary.categoryBreakdown,
       terminologyIssues: terminologyIssues,
-      namingConventionIssue: namingConventionIssue
+      namingConventionIssue: namingConventionIssue,
+      specIdentity: specIdentityFor(parsed.spec)
     };
   }
 
@@ -2708,7 +2786,9 @@
     summarize: summarize,
     validateExportedReport: validateExportedReport,
     diffReports: diffReports,
-    auditSpec: auditSpec
+    auditSpec: auditSpec,
+    specIdentityFor: specIdentityFor,
+    specMismatchMessage: specMismatchMessage
   };
 })(typeof window !== "undefined" ? window : this);
 
@@ -2750,6 +2830,11 @@
 
   var ICON_CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
     '<path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg>';
+
+  var ICON_LOCK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
+    '<path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
     '</svg>';
 
   // Tiny hand-written OpenAPI 3.0 document embedded directly (no network
@@ -2957,15 +3042,14 @@
   var configToggle = document.getElementById("configToggle");
   var configPanel = document.getElementById("configPanel");
   var configCheckboxes = document.getElementById("configCheckboxes");
-  var configSpecWideCheckboxes = document.getElementById("configSpecWideCheckboxes");
+  var configToggleAllBtn = document.getElementById("configToggleAllBtn");
+  var configApplyBtn = document.getElementById("configApplyBtn");
   var statusMsg = document.getElementById("statusMsg");
   var errorCard = document.getElementById("errorCard");
   var errorText = document.getElementById("errorText");
   var reportSection = document.getElementById("reportSection");
-  var previewBanner = document.getElementById("previewBanner");
-  var previewBannerBtn = document.getElementById("previewBannerBtn");
-  var previewInputNote = document.getElementById("previewInputNote");
-  var inputCard = document.getElementById("inputCard");
+  var demoBanner = document.getElementById("demoBanner");
+  var demoBannerCloseBtn = document.getElementById("demoBannerCloseBtn");
   var reportTabBtns = document.querySelectorAll(".report-tab");
   var tabPanelEndpoints = document.getElementById("tabPanelEndpoints");
   var tabPanelTerminology = document.getElementById("tabPanelTerminology");
@@ -3012,6 +3096,7 @@
   var diffErrorEl = document.getElementById("diffError");
   var diffResultsEl = document.getElementById("diffResults");
   var diffConfigNote = document.getElementById("diffConfigNote");
+  var diffSpecMismatchNote = document.getElementById("diffSpecMismatchNote");
   var diffSummaryEl = document.getElementById("diffSummary");
   var diffBreakdownEl = document.getElementById("diffBreakdown");
   var diffCategoryFilterSelect = document.getElementById("diffCategoryFilterSelect");
@@ -3082,6 +3167,26 @@
   var terminologyNextPageBtns = document.querySelectorAll(".terminology-pagination-next");
   var terminologyLastPageBtns = document.querySelectorAll(".terminology-pagination-last");
 
+  // Single place that updates a pagination UI's visibility/indicator/button
+  // state from a page/totalPages pair – reused by the endpoint table, the
+  // diff table, and the terminology list instead of three copies of the same
+  // block (see buildPaginationHtml above for the matching shared markup
+  // factory). Hidden outright whenever the result fits on one page
+  // (totalPages <= 1, which is also true for a genuinely empty result,
+  // since Math.max(1, ...) floors totalPages at 1) – not just when the
+  // result is empty – so "Page 1 of 1" with every button disabled never
+  // shows for a small result. The result-count text above the table is
+  // untouched by this; only the pagination row itself hides.
+  function updatePaginationControls(containers, indicators, firstBtns, prevBtns, nextBtns, lastBtns, page, totalPages) {
+    containers.forEach(function (el) { el.hidden = totalPages <= 1; });
+    var indicatorText = "Page " + page + " of " + totalPages;
+    indicators.forEach(function (el) { el.textContent = indicatorText; });
+    firstBtns.forEach(function (el) { el.disabled = page <= 1; });
+    prevBtns.forEach(function (el) { el.disabled = page <= 1; });
+    nextBtns.forEach(function (el) { el.disabled = page >= totalPages; });
+    lastBtns.forEach(function (el) { el.disabled = page >= totalPages; });
+  }
+
   var PAGE_SIZE = 25;
   // Terminology items are far taller than an endpoint-table row (each renders
   // several description blocks with occurrence counts and example locations),
@@ -3092,25 +3197,56 @@
   // the closest match to a comparable page height.
   var TERMINOLOGY_PAGE_SIZE = 4;
 
+  // Persists which check categories are enabled across reloads – wrapped in
+  // try/catch since localStorage can throw in some privacy modes, and a
+  // broken read/write here must never block the tool from working with
+  // defaults. Stored as a plain array of category keys (the same keys
+  // state.enabledCategories holds), not booleans per key, so it stays
+  // agnostic to which categories exist.
+  var CHECK_CONFIG_KEY = "specAuditCheckConfig";
+
+  function loadSavedCheckConfig() {
+    try {
+      var raw = localStorage.getItem(CHECK_CONFIG_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveCheckConfig() {
+    try {
+      localStorage.setItem(CHECK_CONFIG_KEY, JSON.stringify(Array.from(state.enabledCategories)));
+    } catch (e) {
+      // Ignore – the configuration still applies for this page view even if
+      // it can't be persisted for the next one.
+    }
+  }
+
+  var DEFAULT_ENABLED_CATEGORIES = SpecAuditEngine.CONFIGURABLE_CATEGORIES.concat(
+    SpecAuditEngine.SEMANTIC_SUBCHECKS.filter(function (s) { return s.defaultEnabled; })
+      .map(function (s) { return s.key; }),
+    SpecAuditEngine.SPEC_WIDE_CHECKS.filter(function (s) { return s.defaultEnabled; })
+      .map(function (s) { return s.key; })
+  );
+
   var state = {
     endpoints: [],
     view: [],
     categoryFilter: null,
     page: 1,
     specSource: null,
+    specIdentity: null,
     // All 6 single-toggle categories start enabled, plus whichever semantic
     // sub-checks default to enabled (type/enum mismatch, not
-    // dangling-reference – see SEMANTIC_SUBCHECKS). Kept as JS state (not
-    // localStorage, which isn't available here) so it survives across
-    // multiple audit runs within the same page load.
-    enabledCategories: new Set(
-      SpecAuditEngine.CONFIGURABLE_CATEGORIES.concat(
-        SpecAuditEngine.SEMANTIC_SUBCHECKS.filter(function (s) { return s.defaultEnabled; })
-          .map(function (s) { return s.key; }),
-        SpecAuditEngine.SPEC_WIDE_CHECKS.filter(function (s) { return s.defaultEnabled; })
-          .map(function (s) { return s.key; })
-      )
-    ),
+    // dangling-reference – see SEMANTIC_SUBCHECKS), UNLESS a saved
+    // configuration exists in localStorage (see loadSavedCheckConfig above),
+    // in which case that takes over entirely – the checkbox panel below
+    // always derives its checked state from this same Set, so the two can
+    // never disagree with each other on render.
+    enabledCategories: new Set(loadSavedCheckConfig() || DEFAULT_ENABLED_CATEGORIES),
     terminologyIssues: [],
     terminologyView: [],
     terminologyPage: 1,
@@ -3136,31 +3272,55 @@
   // ---------------------------------------------------------------------
   // Check configuration panel
   // ---------------------------------------------------------------------
-  // The 6 regular categories are each one checkbox; "semantic" instead gets
-  // a labeled sub-group of 3 independent checkboxes (see SEMANTIC_SUBCHECKS)
-  // so its differing reliability/defaults are visible, not folded into a
-  // single misleading toggle.
+  // "unresolvable" and "parse-error" always run (see CONFIGURABLE_CATEGORIES
+  // above) – shown here as checked, disabled checkboxes rather than being
+  // absent, so the panel visibly accounts for every category-level check
+  // instead of silently omitting two of them. The lock icon + reduced
+  // opacity (see .config-checkbox-locked) already communicate "can't be
+  // changed" on their own, so there's no separate explanatory note – these
+  // two sit in the grid exactly like every other checkbox, same gap on all
+  // sides, not set apart from the list.
+  var STRUCTURAL_CATEGORIES = ["unresolvable", "parse-error"];
+  var structuralCheckboxesHtml = STRUCTURAL_CATEGORIES.map(function (category) {
+    var label = SpecAuditEngine.CATEGORY_LABELS[category] || category;
+    return '<label class="config-checkbox config-checkbox-locked">' +
+      '<input type="checkbox" data-category="' + category + '" checked disabled />' +
+      ICON_LOCK_SVG +
+      '<span>' + esc(label) + '</span>' +
+      '</label>';
+  }).join("");
+
+  // The 6 regular categories plus the 3 semantic sub-checks (see
+  // SEMANTIC_SUBCHECKS) are each their own independent checkbox, flowing
+  // into the same flat grid with no border/indentation setting the
+  // semantic ones apart – every checkbox here reads identically. Every
+  // checkbox's checked state is derived from state.enabledCategories (not
+  // hardcoded, and not each check's own .defaultEnabled) – state.enabledCategories
+  // may already reflect a saved localStorage configuration by this point
+  // (see loadSavedCheckConfig above), and hardcoding "checked" here would
+  // silently disagree with that real state the moment it differs from the
+  // built-in defaults.
   var regularCheckboxesHtml = SpecAuditEngine.CONFIGURABLE_CATEGORIES.map(function (category) {
     var label = SpecAuditEngine.CATEGORY_LABELS[category] || category;
-    return '<label class="config-checkbox"><input type="checkbox" data-category="' + category + '" checked /> ' + label + '</label>';
+    var checkedAttr = state.enabledCategories.has(category) ? " checked" : "";
+    return '<label class="config-checkbox"><input type="checkbox" data-category="' + category + '"' + checkedAttr + ' /> ' + label + '</label>';
   }).join("");
 
-  var semanticSubgroupHtml = '<div class="config-subgroup">' +
-    '<div class="config-subgroup-label">' + esc(SpecAuditEngine.CATEGORY_LABELS.semantic) + '</div>' +
-    SpecAuditEngine.SEMANTIC_SUBCHECKS.map(function (s) {
-      return '<label class="config-checkbox config-subcheck"><input type="checkbox" data-category="' + s.key + '"' + (s.defaultEnabled ? " checked" : "") + ' /> ' + esc(s.label) + '</label>';
-    }).join("") +
-    '</div>';
-
-  configCheckboxes.innerHTML = regularCheckboxesHtml + semanticSubgroupHtml;
-
-  // Spec-wide checks (currently just terminology consistency) get their own
-  // section in the panel, separate from the per-endpoint categories above –
-  // they aren't owned by any single endpoint, so grouping them with the
-  // per-endpoint checkboxes would misrepresent what they cover.
-  configSpecWideCheckboxes.innerHTML = SpecAuditEngine.SPEC_WIDE_CHECKS.map(function (s) {
-    return '<label class="config-checkbox"><input type="checkbox" data-category="' + s.key + '"' + (s.defaultEnabled ? " checked" : "") + ' /> ' + esc(s.label) + '</label>';
+  var semanticSubgroupHtml = SpecAuditEngine.SEMANTIC_SUBCHECKS.map(function (s) {
+    var checkedAttr = state.enabledCategories.has(s.key) ? " checked" : "";
+    return '<label class="config-checkbox"><input type="checkbox" data-category="' + s.key + '"' + checkedAttr + ' /> ' + esc(s.label) + '</label>';
   }).join("");
+
+  // Spec-wide checks (currently just terminology consistency) flow into the
+  // exact same two-column grid as everything else – there's no separate
+  // section/heading distinguishing them from the per-endpoint categories
+  // above, per the single-flat-list layout.
+  var specWideCheckboxesHtml = SpecAuditEngine.SPEC_WIDE_CHECKS.map(function (s) {
+    var checkedAttr = state.enabledCategories.has(s.key) ? " checked" : "";
+    return '<label class="config-checkbox"><input type="checkbox" data-category="' + s.key + '"' + checkedAttr + ' /> ' + esc(s.label) + '</label>';
+  }).join("");
+
+  configCheckboxes.innerHTML = structuralCheckboxesHtml + regularCheckboxesHtml + semanticSubgroupHtml + specWideCheckboxesHtml;
 
   // "Filter by issue" dropdowns – replace the old text-only "Filtered by: X ×"
   // indicators with a real, two-way-synced control: selecting an option here
@@ -3178,6 +3338,23 @@
     configPanel.hidden = expanded;
   });
 
+  // Every non-disabled checkbox in the panel – i.e. every real toggle,
+  // excluding the 2 locked structural ones – shared by Select/Deselect all
+  // and the label that reflects whether they're all currently checked.
+  function toggleableConfigCheckboxes() {
+    return Array.prototype.slice.call(configCheckboxes.querySelectorAll('input[type="checkbox"]:not(:disabled)'));
+  }
+
+  function updateConfigToggleAllLabel() {
+    var boxes = toggleableConfigCheckboxes();
+    var allChecked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    configToggleAllBtn.textContent = allChecked ? "Deselect all" : "Select all";
+  }
+
+  // Only mutates the in-memory Set – deliberately does NOT re-run the audit
+  // or touch localStorage. Both only happen when "Apply and re-run" is
+  // clicked (see configApplyBtn below), so toggling several checkboxes in a
+  // row re-audits once, not once per click.
   function handleConfigCheckboxChange(e) {
     var checkbox = e.target.closest("input[data-category]");
     if (!checkbox) return;
@@ -3187,16 +3364,44 @@
     } else {
       state.enabledCategories.delete(category);
     }
-    // Re-audit from scratch with the new config, but only if a report is
-    // already showing – toggling before the first run just saves the
-    // preference for when "Run audit" is clicked.
-    if (!reportSection.hidden) {
-      runAudit();
-    }
+    updateConfigToggleAllLabel();
   }
 
   configCheckboxes.addEventListener("change", handleConfigCheckboxChange);
-  configSpecWideCheckboxes.addEventListener("change", handleConfigCheckboxChange);
+  updateConfigToggleAllLabel();
+
+  // Checks or unchecks every toggleable checkbox at once – the 2 locked
+  // structural ones are excluded by toggleableConfigCheckboxes() above and
+  // never change either way. Same "mutate state, don't re-run" contract as
+  // a single checkbox: still requires Apply and re-run to actually take
+  // effect. Setting .checked programmatically doesn't fire "change", so
+  // state.enabledCategories is updated directly here instead of relying on
+  // handleConfigCheckboxChange.
+  configToggleAllBtn.addEventListener("click", function () {
+    var boxes = toggleableConfigCheckboxes();
+    var allChecked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    var nextChecked = !allChecked;
+    boxes.forEach(function (b) {
+      b.checked = nextChecked;
+      if (nextChecked) {
+        state.enabledCategories.add(b.dataset.category);
+      } else {
+        state.enabledCategories.delete(b.dataset.category);
+      }
+    });
+    updateConfigToggleAllLabel();
+  });
+
+  // Persists the configuration (so it survives a reload and applies to
+  // future audits) and re-runs immediately if a report is already showing –
+  // toggling before the first run just saves the preference for when "Run
+  // audit" is clicked.
+  configApplyBtn.addEventListener("click", function () {
+    saveCheckConfig();
+    if (!reportSection.hidden) {
+      runAudit();
+    }
+  });
 
   // ---------------------------------------------------------------------
   // Small utilities
@@ -3278,10 +3483,29 @@
   // ones that ran, 0-count included), same counts, always in sync. Rebuilding
   // resets the select's value, so it's restored from state.categoryFilter
   // afterward rather than left to default to the first option.
+  // Every category in CATEGORY_ORDER gets an option, not just the ones that
+  // actually ran (rows – already filtered to "ran" by summarize()'s
+  // categoryRan, so a category present in rows is enabled and absent is
+  // disabled) – a disabled category still needs to be visible so the user
+  // can see it exists, just not selectable, rather than either silently
+  // vanishing from the list or showing a stale/zero count as if it still
+  // applied. If the currently-selected filter is the one just disabled,
+  // reset to "All endpoint issues" instead of leaving a disabled option
+  // selected underneath the user.
   function updateCategoryFilterSelectOptions(rows) {
+    var rowsByCategory = {};
+    rows.forEach(function (r) { rowsByCategory[r.category] = r; });
+    if (state.categoryFilter && !rowsByCategory[state.categoryFilter]) {
+      state.categoryFilter = null;
+    }
     categoryFilterSelect.innerHTML = '<option value="">All endpoint issues</option>' +
-      rows.map(function (r) {
-        return '<option value="' + esc(r.category) + '">' + esc(r.label) + ' (' + r.count + ')</option>';
+      SpecAuditEngine.CATEGORY_ORDER.map(function (category) {
+        var row = rowsByCategory[category];
+        var label = SpecAuditEngine.CATEGORY_LABELS[category] || category;
+        if (!row) {
+          return '<option value="' + esc(category) + '" disabled>' + esc(label) + '</option>';
+        }
+        return '<option value="' + esc(category) + '">' + esc(row.label) + ' (' + row.count + ')</option>';
       }).join("");
     categoryFilterSelect.value = state.categoryFilter || "";
   }
@@ -3321,21 +3545,32 @@
   }
 
   // Rebuilds terminologyFilterSelect's options with each check's current
-  // count, same as updateCategoryFilterSelectOptions above. Called after
-  // every audit run since counts change per spec.
+  // count, same as updateCategoryFilterSelectOptions above – a disabled
+  // check still gets an option (so it stays visible), just disabled and
+  // count-less rather than removed or showing a stale/zero count. If the
+  // currently-selected filter is the one just disabled, reset to "All
+  // terminology issues" instead of leaving a disabled option selected.
+  // Called after every audit run since counts change per spec.
   function updateTerminologyFilterSelectOptions() {
     var counts = specWideCounts();
+    var termEnabled = state.enabledCategories.has("spec-wide-terminology");
+    var namingEnabled = state.enabledCategories.has("spec-wide-naming-convention");
+    if (state.terminologyFilter === "field-descriptions" && !termEnabled) state.terminologyFilter = null;
+    if (state.terminologyFilter === "naming-convention" && !namingEnabled) state.terminologyFilter = null;
     terminologyFilterSelect.innerHTML =
       '<option value="">All terminology issues</option>' +
-      '<option value="field-descriptions">Inconsistent field descriptions (' + counts.termCount + ')</option>' +
-      '<option value="naming-convention">Inconsistent naming convention (' + counts.namingCount + ')</option>';
+      '<option value="field-descriptions"' + (termEnabled ? "" : " disabled") + '>Inconsistent field descriptions' + (termEnabled ? " (" + counts.termCount + ")" : "") + '</option>' +
+      '<option value="naming-convention"' + (namingEnabled ? "" : " disabled") + '>Inconsistent naming convention' + (namingEnabled ? " (" + counts.namingCount + ")" : "") + '</option>';
     terminologyFilterSelect.value = state.terminologyFilter || "";
   }
 
   function renderTerminologyBreakdown() {
     var enabled = state.enabledCategories.has("spec-wide-terminology");
     if (!enabled) {
-      terminologyBreakdownEl.innerHTML = '<div class="breakdown-empty">This check is currently disabled.</div>';
+      // Fully absent when disabled – same "not there at all" treatment a
+      // disabled per-endpoint category already gets (summarize() just
+      // filters it out of categoryBreakdown), not a "disabled" placeholder.
+      terminologyBreakdownEl.innerHTML = "";
       return;
     }
     var count = state.terminologyIssues.length;
@@ -3386,7 +3621,8 @@
   function renderNamingConventionBreakdown() {
     var enabled = state.enabledCategories.has("spec-wide-naming-convention");
     if (!enabled) {
-      namingConventionBreakdownEl.innerHTML = '<div class="breakdown-empty">This check is currently disabled.</div>';
+      // Fully absent when disabled – see renderTerminologyBreakdown above.
+      namingConventionBreakdownEl.innerHTML = "";
       return;
     }
     var issue = state.namingConventionIssue;
@@ -3429,7 +3665,10 @@
   function renderNamingConventionDetail() {
     var enabled = state.enabledCategories.has("spec-wide-naming-convention");
     if (!enabled) {
-      namingConventionDetailEl.innerHTML = '<div class="terminology-empty">This check is currently disabled.</div>';
+      // Fully absent when disabled – the whole card is also hidden via
+      // updateTerminologyFilterIndicator(), this just keeps its content
+      // empty rather than leaving stale/placeholder text behind it.
+      namingConventionDetailEl.innerHTML = "";
       return;
     }
     var issue = state.namingConventionIssue;
@@ -3502,7 +3741,11 @@
     var enabled = state.enabledCategories.has("spec-wide-terminology");
 
     if (!enabled) {
-      terminologySummaryEl.innerHTML = '<div class="terminology-empty">This check is currently disabled.</div>';
+      // Fully absent when disabled – #terminologyListArea (which wraps this
+      // summary) is also hidden entirely via updateTerminologyFilterIndicator(),
+      // this just keeps its content empty rather than leaving stale text
+      // behind it.
+      terminologySummaryEl.innerHTML = "";
       terminologyControlsEl.hidden = true;
       terminologyIntroEl.hidden = true;
       terminologyListEl.innerHTML = "";
@@ -3531,7 +3774,6 @@
       ? allIssues.length + " flagged field names in the whole spec"
       : view.length + " of " + allIssues.length + " flagged field names";
     terminologyEmptyState.hidden = view.length !== 0;
-    terminologyPaginationContainers.forEach(function (el) { el.hidden = view.length === 0; });
 
     var totalPages = Math.max(1, Math.ceil(view.length / TERMINOLOGY_PAGE_SIZE));
     if (state.terminologyPage > totalPages) state.terminologyPage = totalPages;
@@ -3559,12 +3801,7 @@
         '</div>';
     }).join("");
 
-    var indicatorText = "Page " + state.terminologyPage + " of " + totalPages;
-    terminologyPageIndicators.forEach(function (el) { el.textContent = indicatorText; });
-    terminologyFirstPageBtns.forEach(function (el) { el.disabled = state.terminologyPage <= 1; });
-    terminologyPrevPageBtns.forEach(function (el) { el.disabled = state.terminologyPage <= 1; });
-    terminologyNextPageBtns.forEach(function (el) { el.disabled = state.terminologyPage >= totalPages; });
-    terminologyLastPageBtns.forEach(function (el) { el.disabled = state.terminologyPage >= totalPages; });
+    updatePaginationControls(terminologyPaginationContainers, terminologyPageIndicators, terminologyFirstPageBtns, terminologyPrevPageBtns, terminologyNextPageBtns, terminologyLastPageBtns, state.terminologyPage, totalPages);
   }
 
   function scrollToTerminologyTop() {
@@ -3693,8 +3930,15 @@
     if (termRow) termRow.classList.toggle("active", filter === "field-descriptions");
     if (namingRow) namingRow.classList.toggle("active", filter === "naming-convention");
 
-    terminologyListAreaEl.hidden = filter === "naming-convention";
-    namingConventionSectionEl.hidden = filter === "field-descriptions";
+    // A disabled check's whole card is hidden outright, on top of the
+    // existing filter-driven hiding – it must be fully absent, not just
+    // showing an empty/placeholder card (see renderTerminology() and
+    // renderNamingConventionDetail() above, which keep these containers'
+    // own content empty for exactly this disabled case).
+    var termEnabled = state.enabledCategories.has("spec-wide-terminology");
+    var namingEnabled = state.enabledCategories.has("spec-wide-naming-convention");
+    terminologyListAreaEl.hidden = !termEnabled || filter === "naming-convention";
+    namingConventionSectionEl.hidden = !namingEnabled || filter === "field-descriptions";
   }
 
   function setTerminologyFilter(filter) {
@@ -3739,7 +3983,6 @@
     var view = state.view;
     resultCount.textContent = view.length + " of " + state.endpoints.length + " endpoints";
     emptyState.hidden = view.length !== 0;
-    paginationContainers.forEach(function (el) { el.hidden = view.length === 0; });
 
     var totalPages = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
     if (state.page > totalPages) state.page = totalPages;
@@ -3766,12 +4009,7 @@
 
     endpointTbody.innerHTML = html;
 
-    var indicatorText = "Page " + state.page + " of " + totalPages;
-    pageIndicators.forEach(function (el) { el.textContent = indicatorText; });
-    firstPageBtns.forEach(function (el) { el.disabled = state.page <= 1; });
-    prevPageBtns.forEach(function (el) { el.disabled = state.page <= 1; });
-    nextPageBtns.forEach(function (el) { el.disabled = state.page >= totalPages; });
-    lastPageBtns.forEach(function (el) { el.disabled = state.page >= totalPages; });
+    updatePaginationControls(paginationContainers, pageIndicators, firstPageBtns, prevPageBtns, nextPageBtns, lastPageBtns, state.page, totalPages);
   }
 
   function buildDetailRow(endpoint) {
@@ -3975,16 +4213,16 @@
   // ---------------------------------------------------------------------
   // Orchestration
   // ---------------------------------------------------------------------
-  // Shared by a real audit run and the landing preview below – the only
-  // difference is isPreview, which decides state.specSource and whether the
-  // preview banner shows. Everything else (state, every render function,
-  // export enabling, the diff view) is exactly what a real run does, so the
-  // preview can never diverge from what running a real spec looks like.
-  function finishAudit(endpoints, parsedSpec, isPreview) {
+  // Shared end-of-run bookkeeping for every audit, real or the demo example
+  // – state, every render function, export enabling, and the diff view are
+  // exactly the same regardless of source, so the demo can never diverge
+  // from what running a real spec looks like.
+  function finishAudit(endpoints, parsedSpec) {
     state.endpoints = endpoints;
     state.categoryFilter = null;
     state.terminologyFilter = null;
-    state.specSource = isPreview ? "Example preview" : (state.specSource || "Pasted directly");
+    state.specSource = state.specSource || "Pasted directly";
+    state.specIdentity = SpecAuditEngine.specIdentityFor(parsedSpec);
     state.terminologyIssues = state.enabledCategories.has("spec-wide-terminology")
       ? SpecAuditEngine.findTerminologyInconsistencies(parsedSpec)
       : [];
@@ -4007,8 +4245,6 @@
     sortSelect.value = "score-asc";
     applyFilters();
     reportSection.hidden = false;
-    previewBanner.hidden = !isPreview;
-    previewInputNote.hidden = !isPreview;
     exportJsonBtn.disabled = false;
     exportHtmlBtn.disabled = false;
     updateDiff();
@@ -4050,7 +4286,7 @@
               runBtn.disabled = false;
               return;
             }
-            finishAudit(endpoints, parsed.spec, false);
+            finishAudit(endpoints, parsed.spec);
             setStatus("Audited " + endpoints.length + " endpoints.");
           } catch (e) {
             showError("Something went wrong while checking this spec: " + e.message);
@@ -4069,54 +4305,15 @@
 
   runBtn.addEventListener("click", runAudit);
 
-  // Landing preview: a real audit of a small embedded spec, shown
-  // automatically so a first-time visitor sees the tool in action before
-  // touching anything. Only runs if the input area is genuinely untouched –
-  // guards against the unlikely case of a real run already having started
-  // (or the textarea already holding something) by the time this executes.
-  // The textarea is pre-filled with the actual spec text being audited (not
-  // left blank) so scrolling up to it shows something real instead of an
-  // empty box that contradicts the report below it.
-  function runLandingPreview() {
-    if (specInput.value.trim() || state.endpoints.length > 0) return;
-    try {
-      var validationError = SpecAuditEngine.validateSpec(LANDING_PREVIEW_SPEC);
-      if (validationError) return;
-      var endpoints = SpecAuditEngine.extractEndpoints(LANDING_PREVIEW_SPEC, state.enabledCategories);
-      if (endpoints.length === 0) return;
-      specInput.value = JSON.stringify(LANDING_PREVIEW_SPEC, null, 2);
-      finishAudit(endpoints, LANDING_PREVIEW_SPEC, true);
-    } catch (e) {
-      // A broken preview must never block the real tool – fail silently and
-      // leave the report area empty, same as before this feature existed.
-    }
-  }
-
-  // Clears the pre-filled example (not just scrolls to it) so the user lands
-  // on a genuinely blank field ready to paste into, not an already-full
-  // textarea that still visually says "preview" – scrolling to a full box
-  // with nothing else changing is what made this link look like it did
-  // nothing. The report itself (and its banner) stays showing the preview
-  // until a real audit actually runs, same as clearing the box by hand.
-  previewBannerBtn.addEventListener("click", function () {
-    specInput.value = "";
-    state.specSource = null;
-    previewInputNote.hidden = true;
-    inputCard.scrollIntoView({ block: "start" });
-    specInput.focus();
-  });
-
-  runLandingPreview();
-
   // Only real user edits should clear the "loaded sample" indicator – setting
   // .value programmatically (from the example/URL loaders below) doesn't fire
-  // "input", so this only reacts to actual typing/pasting. Also dismisses the
-  // preview input note the moment the user starts typing/pasting over the
-  // pre-filled example, even if they never clicked the banner link first.
+  // "input", so this only reacts to actual typing/pasting. Same reasoning
+  // applies to dismissing the demo banner – typing/pasting is exactly the
+  // "provided their own input" moment it needs to disappear for.
   specInput.addEventListener("input", function () {
     exampleSelect.value = "";
     state.specSource = null;
-    previewInputNote.hidden = true;
+    dismissDemoBanner();
   });
 
   fetchUrlBtn.addEventListener("click", function () {
@@ -4134,6 +4331,7 @@
         specInput.value = text;
         exampleSelect.value = "";
         state.specSource = url;
+        dismissDemoBanner();
         setStatus("Fetched. Running audit…");
         runAudit();
       })
@@ -4148,9 +4346,25 @@
 
   exampleSelect.addEventListener("change", function () {
     var key = exampleSelect.value;
-    if (!key || !SpecAuditEngine.EXAMPLES[key]) return;
+    if (!key) return;
     var sourceLabel = exampleSelect.options[exampleSelect.selectedIndex].textContent;
     clearError();
+
+    // The demo entry is embedded (LANDING_PREVIEW_SPEC, see the AUDIT ENGINE
+    // section above), not fetched – it's a mock spec purpose-built to show
+    // every check category at once, not a real-world API, so there's no URL
+    // for it in SpecAuditEngine.EXAMPLES. Everything after this still goes
+    // through the exact same runAudit() a real paste does.
+    if (key === "demo") {
+      specInput.value = JSON.stringify(LANDING_PREVIEW_SPEC, null, 2);
+      urlInput.value = "";
+      state.specSource = sourceLabel;
+      setStatus("Loaded. Running audit…");
+      runAudit();
+      return;
+    }
+
+    if (!SpecAuditEngine.EXAMPLES[key]) return;
     setStatus("Fetching example spec…");
     exampleSelect.disabled = true;
     fetch(SpecAuditEngine.EXAMPLES[key])
@@ -4162,6 +4376,7 @@
         specInput.value = text;
         urlInput.value = "";
         state.specSource = sourceLabel;
+        dismissDemoBanner();
         setStatus("Loaded. Running audit…");
         runAudit();
       })
@@ -4174,6 +4389,49 @@
         exampleSelect.disabled = false;
       });
   });
+
+  // First-visit auto-load: dispatches a "change" event on exampleSelect
+  // after programmatically selecting "demo", so it runs through the exact
+  // same handler above as a manual selection – no separate preview code
+  // path. Gated on a localStorage flag so it only ever happens once per
+  // browser; wrapped in try/catch since localStorage can throw in some
+  // privacy modes, and a broken check here must never block the real tool.
+  var DEMO_SEEN_KEY = "specAuditDemoSeen";
+
+  function hasSeenDemo() {
+    try {
+      return localStorage.getItem(DEMO_SEEN_KEY) === "true";
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function markDemoSeen() {
+    try {
+      localStorage.setItem(DEMO_SEEN_KEY, "true");
+    } catch (e) {
+      // Ignore – the banner still dismisses for this page view even if the
+      // dismissal can't be persisted.
+    }
+  }
+
+  // Shared by the × button and every "the user provided real input" path
+  // below (paste/type, URL fetch, picking a different example) – all of
+  // them permanently suppress future auto-loading the same way, they just
+  // also happen to trigger a real audit, which × alone doesn't.
+  function dismissDemoBanner() {
+    if (demoBanner.hidden) return;
+    markDemoSeen();
+    demoBanner.hidden = true;
+  }
+
+  if (!hasSeenDemo()) {
+    exampleSelect.value = "demo";
+    exampleSelect.dispatchEvent(new Event("change"));
+    demoBanner.hidden = false;
+  }
+
+  demoBannerCloseBtn.addEventListener("click", dismissDemoBanner);
 
   // ---------------------------------------------------------------------
   // Export
@@ -4249,6 +4507,7 @@
       disabledChecks: computeDisabledChecks(),
       terminologyIssues: state.terminologyIssues,
       namingConventionIssue: state.namingConventionIssue,
+      specIdentity: state.specIdentity,
       endpoints: state.endpoints.map(function (e) {
         return {
           path: e.path,
@@ -4515,6 +4774,10 @@
 
   function renderDiffSummary(diff) {
     diffConfigNote.hidden = !diff.configDiffers;
+    diffSpecMismatchNote.hidden = !diff.specMismatch;
+    if (diff.specMismatch) {
+      diffSpecMismatchNote.textContent = SpecAuditEngine.specMismatchMessage(diff);
+    }
 
     var gradeHtml = diff.gradeChanged
       ? esc(diff.previousGrade) + ' → ' + esc(diff.currentGrade)
@@ -4642,7 +4905,6 @@
     var view = diffState.view;
     diffResultCount.textContent = view.length + " of " + diffState.diff.endpoints.length + " endpoints";
     diffEmptyState.hidden = view.length !== 0;
-    diffPaginationContainers.forEach(function (el) { el.hidden = view.length === 0; });
 
     var totalPages = Math.max(1, Math.ceil(view.length / PAGE_SIZE));
     if (diffState.page > totalPages) diffState.page = totalPages;
@@ -4665,12 +4927,7 @@
         '</tr>';
     }).join("");
 
-    var indicatorText = "Page " + diffState.page + " of " + totalPages;
-    diffPageIndicators.forEach(function (el) { el.textContent = indicatorText; });
-    diffFirstPageBtns.forEach(function (el) { el.disabled = diffState.page <= 1; });
-    diffPrevPageBtns.forEach(function (el) { el.disabled = diffState.page <= 1; });
-    diffNextPageBtns.forEach(function (el) { el.disabled = diffState.page >= totalPages; });
-    diffLastPageBtns.forEach(function (el) { el.disabled = diffState.page >= totalPages; });
+    updatePaginationControls(diffPaginationContainers, diffPageIndicators, diffFirstPageBtns, diffPrevPageBtns, diffNextPageBtns, diffLastPageBtns, diffState.page, totalPages);
   }
 
   function buildDiffDetailRow(endpoint) {
