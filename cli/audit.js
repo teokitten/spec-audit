@@ -61,7 +61,7 @@ function printUsage() {
     "\n" +
     "Check keys for --disable/--enable: description, low-quality, examples, errors,\n" +
     "constraints, required, semantic-type-mismatch, semantic-enum-mismatch,\n" +
-    "semantic-dangling-reference, spec-wide-terminology\n"
+    "semantic-dangling-reference, spec-wide-terminology, spec-wide-naming-convention\n"
   );
 }
 
@@ -255,6 +255,7 @@ function buildReportPayload(auditResult, enabledCategories) {
     categoryBreakdown: auditResult.categoryBreakdown,
     disabledChecks: disabledChecks,
     terminologyIssues: auditResult.terminologyIssues || [],
+    namingConventionIssue: auditResult.namingConventionIssue || null,
     endpoints: auditResult.endpoints.map(function (e) {
       return {
         path: e.path,
@@ -286,18 +287,16 @@ function printSummary(payload) {
 
   console.log("");
   console.log("Issues by category");
-  if (payload.categoryBreakdown.length === 0) {
-    console.log("  No issues found - every check passed.");
-  } else {
-    var maxLabelLen = payload.categoryBreakdown.reduce(function (m, r) { return Math.max(m, r.label.length); }, 0);
-    payload.categoryBreakdown.forEach(function (r) {
-      var padding = new Array(maxLabelLen - r.label.length + 3).join(" ");
-      console.log("  " + r.label + padding + r.count);
-    });
-  }
+  var maxLabelLen = payload.categoryBreakdown.reduce(function (m, r) { return Math.max(m, r.label.length); }, 0);
+  payload.categoryBreakdown.forEach(function (r) {
+    var padding = new Array(maxLabelLen - r.label.length + 3).join(" ");
+    var line = "  " + r.label + padding + r.count;
+    console.log(r.count === 0 ? paint(line, COLOR.dim) : line);
+  });
   console.log("");
 
   printTerminology(payload);
+  printNamingConvention(payload);
 }
 
 // Spec-wide, not per-endpoint, so it's reported separately from the category
@@ -325,6 +324,45 @@ function printTerminology(payload) {
   payload.terminologyIssues.forEach(function (item) {
     var counts = item.descriptions.map(function (d) { return d.occurrenceCount; }).join(", ");
     console.log("  `" + item.name + "` - " + item.descriptions.length + " distinct descriptions (" + counts + " occurrences)");
+  });
+  console.log("");
+}
+
+// Same spec-wide, reported-separately shape as printTerminology above –
+// this check is a single spec-wide flag rather than a per-name list, so
+// there's just one summary line plus (when flagged) the minority-convention
+// examples, not a per-item loop.
+function printNamingConvention(payload) {
+  var disabledNaming = payload.disabledChecks.some(function (c) { return c.key === "spec-wide-naming-convention"; });
+
+  console.log("Naming convention");
+  if (disabledNaming) {
+    console.log("  This check is currently disabled.");
+    console.log("");
+    return;
+  }
+  if (!payload.namingConventionIssue) {
+    console.log("  No naming convention issues found.");
+    console.log("");
+    return;
+  }
+
+  var issue = payload.namingConventionIssue;
+  var distinctCount = issue.minority.distinctCount;
+  var occurrenceCount = issue.minority.count;
+  var shownCount = issue.minority.examples.length;
+  var isSingularName = distinctCount === 1;
+  var isSingularOccurrence = occurrenceCount === 1;
+  var cappedNote = shownCount < distinctCount ? " (showing the first " + shownCount + ")" : "";
+  var combinedNote = isSingularName ? "" : " combined";
+  console.log("  This spec is dominantly " + issue.dominant.convention + ". " +
+    (isSingularName ? "This " : "These ") + distinctCount + " name" + (isSingularName ? "" : "s") + cappedNote + " " +
+    (isSingularName ? "appears" : "appear") + " " + occurrenceCount + " time" + (isSingularOccurrence ? "" : "s") + combinedNote +
+    " using " + issue.minority.convention + " instead" +
+    " - consider renaming " + (isSingularName ? "it" : "them") + " for consistency:");
+  console.log("");
+  issue.minority.examples.forEach(function (ex) {
+    console.log("  `" + ex.name + "` - " + ex.location);
   });
   console.log("");
 }

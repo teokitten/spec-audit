@@ -75,9 +75,10 @@ all checks are enabled **except** `semantic-dangling-reference` (see
 
 Outputs the exact same shape as the browser tool's "Export JSON" button —
 `overallScore`, `overallGrade`, `totalIssues`, `categoryBreakdown`,
-`disabledChecks`, and the full `endpoints` array with each endpoint's issues.
-Useful for piping into `jq`, saving as a report artifact, or feeding into
-`--compare` on a later run.
+`disabledChecks`, the two spec-wide check results (`terminologyIssues`,
+`namingConventionIssue`), and the full `endpoints` array with each endpoint's
+issues. Useful for piping into `jq`, saving as a report artifact, or feeding
+into `--compare` on a later run.
 
 ```sh
 node audit.js openapi.json --json > report.json
@@ -122,12 +123,13 @@ panel — every check can be switched either direction, using the same keys:
 - `semantic-enum-mismatch` — description doesn't mention any of a parameter's enum values
 - `semantic-dangling-reference` — description references a field name that doesn't exist on the endpoint
 - `spec-wide-terminology` — the same parameter/property name has meaningfully different descriptions in different places in the spec (on by default; see "Terminology consistency" below)
+- `spec-wide-naming-convention` — parameter/property names don't consistently use the same casing style, e.g. a mix of `snake_case` and `camelCase` (on by default; see "Naming convention consistency" below)
 
 A disabled category is excluded from scoring entirely, not just hidden from
-the report — the same behavior as the browser tool. `spec-wide-terminology` is
-the one exception: it's a spec-wide check, not owned by any endpoint, so
-disabling it removes it from the report but there's no per-endpoint score for
-it to affect in the first place.
+the report — the same behavior as the browser tool. `spec-wide-terminology`
+and `spec-wide-naming-convention` are the exception: they're spec-wide checks,
+not owned by any endpoint, so disabling either removes it from the report but
+there's no per-endpoint score for it to affect in the first place.
 
 ```sh
 node audit.js openapi.json --disable=constraints,required
@@ -172,13 +174,14 @@ Warning: unknown check key "typo-category" in --disable, ignoring.
 
 ### Terminology consistency
 
-Unlike the other 8 checks, `spec-wide-terminology` compares descriptions for
-the same parameter/property name **across the entire spec**, not within one
-endpoint — e.g. if `per_page` is described one way on one endpoint and a
-meaningfully different way on another, that's flagged even though neither
-endpoint's own documentation is individually wrong. It's on by default and
-doesn't affect any endpoint's score (it isn't owned by one endpoint to begin
-with). Both the terminal summary and `--json` output include it:
+Unlike the other 9 per-endpoint checks, `spec-wide-terminology` compares
+descriptions for the same parameter/property name **across the entire spec**,
+not within one endpoint — e.g. if `per_page` is described one way on one
+endpoint and a meaningfully different way on another, that's flagged even
+though neither endpoint's own documentation is individually wrong. It's on by
+default and doesn't affect any endpoint's score (it isn't owned by one
+endpoint to begin with). Both the terminal summary and `--json` output
+include it:
 
 ```
 Terminology consistency
@@ -191,6 +194,30 @@ Terminology consistency
 The terminal output is intentionally compact (name, distinct-description
 count, occurrence counts) — full description text and example locations for
 each name are in `--json` output's `terminologyIssues` array.
+
+### Naming convention consistency
+
+`spec-wide-naming-convention` is the other spec-wide check: it classifies
+every parameter/property name in the spec as `snake_case` (e.g. `user_id`),
+`camelCase` (e.g. `userId`), or neutral (a single lowercase word like `id` or
+`status`, which doesn't indicate either style, so it's excluded). If both
+`snake_case` and `camelCase` occur at least 5 times each, the spec is flagged
+as inconsistent, reporting the dominant convention, the minority convention,
+and up to 10 example names (each with one location) using the minority style.
+Like terminology consistency, it's on by default and doesn't affect any
+endpoint's score.
+
+```
+Naming convention
+  This spec is dominantly snake_case. These 3 names appear 15 times combined using camelCase instead - consider renaming them for consistency:
+
+  `scimType` - schema scim-error.scimType
+  `timePeriod` - schema billing-ai-credit-usage-report-org.timePeriod
+```
+
+Full details (per-bucket counts, dominant/minority split, and every example
+location) are in `--json` output's `namingConventionIssue` object — `null`
+when the spec is consistent or the check is disabled.
 
 ### `--fail-under`
 

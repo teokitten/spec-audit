@@ -2512,10 +2512,37 @@
           categoryChanges: diffCategoryCounts(categoryCountsFor(prevE.issues), categoryCountsFor(currE.issues))
         };
       }
+      // A "new" endpoint's issues are ALL new (there was no previous version
+      // to compare against), and a "removed" endpoint's issues are all gone
+      // – both are genuine category-level changes, not an empty diff. Reusing
+      // diffCategoryCounts/categoryCountsFor against an empty {} on the
+      // missing side keeps this consistent with the matched-endpoint case
+      // above instead of hardcoding categoryChanges to [], which silently
+      // dropped new/removed endpoints from the per-category filter even when
+      // they were exactly what drove a real categoryDeltas change (the bug:
+      // a spec-wide category delta caused by added/removed endpoints showed
+      // up correctly in the aggregate "Category changes" breakdown, but the
+      // per-endpoint filter had nothing to match against).
       if (currE) {
-        return { path: currE.path, method: currE.method, status: "new", previousScore: null, currentScore: currE.score, scoreDelta: null, categoryChanges: [] };
+        return {
+          path: currE.path,
+          method: currE.method,
+          status: "new",
+          previousScore: null,
+          currentScore: currE.score,
+          scoreDelta: null,
+          categoryChanges: diffCategoryCounts({}, categoryCountsFor(currE.issues))
+        };
       }
-      return { path: prevE.path, method: prevE.method, status: "removed", previousScore: prevE.score, currentScore: null, scoreDelta: null, categoryChanges: [] };
+      return {
+        path: prevE.path,
+        method: prevE.method,
+        status: "removed",
+        previousScore: prevE.score,
+        currentScore: null,
+        scoreDelta: null,
+        categoryChanges: diffCategoryCounts(categoryCountsFor(prevE.issues), {})
+      };
     });
 
     var prevCategoryCounts = {};
@@ -4257,14 +4284,24 @@
     };
   }
 
+  // Shared predicate for whether an endpoint matches a combination of
+  // search/status/category – used both for the actual filtered view and for
+  // computing each dropdown's cross-filtered option counts below (holding
+  // one dimension at the option being evaluated, the other at its current
+  // active value), so there's exactly one place that defines what "matches"
+  // means instead of a second, potentially-diverging implementation.
+  function diffEndpointMatchesFilters(e, opts) {
+    if (opts.search && e.path.toLowerCase().indexOf(opts.search) === -1) return false;
+    if (opts.status && e.status !== opts.status) return false;
+    if (opts.category && !e.categoryChanges.some(function (c) { return c.category === opts.category; })) return false;
+    return true;
+  }
+
   function applyDiffFilters() {
     if (!diffState.diff) return;
     var f = diffCurrentFilters();
     var view = diffState.diff.endpoints.filter(function (e) {
-      if (f.search && e.path.toLowerCase().indexOf(f.search) === -1) return false;
-      if (f.status && e.status !== f.status) return false;
-      if (diffState.categoryFilter && !e.categoryChanges.some(function (c) { return c.category === diffState.categoryFilter; })) return false;
-      return true;
+      return diffEndpointMatchesFilters(e, { search: f.search, status: f.status, category: diffState.categoryFilter });
     });
 
     view.sort(function (a, b) {
@@ -4280,6 +4317,11 @@
     diffState.view = view;
     diffState.page = 1;
     renderDiffTable();
+    // Both dropdowns' option counts depend on the OTHER dropdown's current
+    // selection plus the search text, so they're recomputed here – the one
+    // choke point every search/status/category change already runs through.
+    updateDiffStatusFilterOptions();
+    updateDiffCategoryFilterSelectOptions();
   }
 
   function diffScoreCellHtml(e) {
@@ -4420,42 +4462,63 @@
   diffStatusFilter.addEventListener("change", applyDiffFilters);
   diffSortSelect.addEventListener("change", applyDiffFilters);
 
-  // Rebuilds diffStatusFilter's options with each status's current count for
-  // this comparison, same pattern as updateCategoryFilterSelectOptions – "All
-  // changes" stays uncounted (consistent with "All endpoint issues"/"All
-  // terminology issues" elsewhere), the rest get their classification count
-  // straight from diffState.diff.endpoints, not a separate calculation.
+  // Rebuilds diffStatusFilter's options with each status's count CROSS-
+  // FILTERED by the currently active category filter and search text – "how
+  // many endpoints would match if this status were selected, given what's
+  // already active elsewhere" (standard faceted-filter semantics), not a
+  // total across all endpoints regardless of other filters. The category
+  // dimension is always evaluated at diffState.categoryFilter's current
+  // value (never the status being evaluated), so a status's own count isn't
+  // computed as if no category filter were active. Options that would
+  // produce zero results get `disabled` instead of being left clickable to
+  // an always-empty result; the current selection is preserved regardless of
+  // its own count, so changing the category filter never yanks the user's
+  // status selection out from under them. "All changes" stays uncounted,
+  // consistent with "All endpoint issues"/"All terminology issues" elsewhere.
   function updateDiffStatusFilterOptions() {
-    var counts = { regressed: 0, improved: 0, unchanged: 0, "new": 0, removed: 0 };
-    diffState.diff.endpoints.forEach(function (e) { counts[e.status] = (counts[e.status] || 0) + 1; });
-    diffStatusFilter.innerHTML =
-      '<option value="">All changes</option>' +
-      '<option value="regressed">Regressed (' + counts.regressed + ')</option>' +
-      '<option value="improved">Improved (' + counts.improved + ')</option>' +
-      '<option value="unchanged">Unchanged (' + counts.unchanged + ')</option>' +
-      '<option value="new">New endpoints (' + counts["new"] + ')</option>' +
-      '<option value="removed">Removed endpoints (' + counts.removed + ')</option>';
+    var f = diffCurrentFilters();
+    var category = diffState.categoryFilter;
+    function countFor(status) {
+      return diffState.diff.endpoints.filter(function (e) {
+        return diffEndpointMatchesFilters(e, { search: f.search, status: status, category: category });
+      }).length;
+    }
+    var statuses = [
+      ["regressed", "Regressed"],
+      ["improved", "Improved"],
+      ["unchanged", "Unchanged"],
+      ["new", "New endpoints"],
+      ["removed", "Removed endpoints"]
+    ];
+    var currentValue = diffStatusFilter.value;
+    diffStatusFilter.innerHTML = '<option value="">All changes</option>' +
+      statuses.map(function (s) {
+        var count = countFor(s[0]);
+        return '<option value="' + s[0] + '"' + (count === 0 ? " disabled" : "") + '>' + s[1] + ' (' + count + ')</option>';
+      }).join("");
+    diffStatusFilter.value = currentValue;
   }
 
   // Rebuilds diffCategoryFilterSelect's options from diffState.diff's own
   // category changes (diff.categoryDeltas) – same categories the "Category
   // changes" breakdown rows show, in the same order. Each option's count is
-  // the number of endpoints with a change in that category (i.e. how many
-  // rows the Endpoint changes list narrows to if selected), computed from
-  // diffState.diff.endpoints' categoryChanges – not a separate calculation
-  // from the delta numbers shown in the breakdown.
+  // CROSS-FILTERED by the currently active status filter and search text,
+  // symmetric to updateDiffStatusFilterOptions above: the status dimension
+  // is always evaluated at the current diffStatusFilter value (never the
+  // category being evaluated), zero-result options are disabled, and the
+  // current selection is preserved even if its own count is now zero.
   function updateDiffCategoryFilterSelectOptions() {
-    var counts = {};
-    diffState.diff.endpoints.forEach(function (e) {
-      e.categoryChanges.forEach(function (c) {
-        counts[c.category] = (counts[c.category] || 0) + 1;
-      });
-    });
+    var f = diffCurrentFilters();
+    var status = f.status;
+    var currentValue = diffCategoryFilterSelect.value;
     diffCategoryFilterSelect.innerHTML = '<option value="">All categories</option>' +
       diffState.diff.categoryDeltas.map(function (r) {
-        return '<option value="' + esc(r.category) + '">' + esc(r.label) + ' (' + (counts[r.category] || 0) + ')</option>';
+        var count = diffState.diff.endpoints.filter(function (e) {
+          return diffEndpointMatchesFilters(e, { search: f.search, status: status, category: r.category });
+        }).length;
+        return '<option value="' + esc(r.category) + '"' + (count === 0 ? " disabled" : "") + '>' + esc(r.label) + ' (' + count + ')</option>';
       }).join("");
-    diffCategoryFilterSelect.value = diffState.categoryFilter || "";
+    diffCategoryFilterSelect.value = currentValue;
   }
 
   // Recomputes the diff from scratch (or hides the results panel if either
@@ -4491,12 +4554,12 @@
     diffResultsEl.hidden = false;
     endpointTableCardEl.hidden = true;
     renderDiffSummary(diffState.diff);
-    updateDiffCategoryFilterSelectOptions();
-    updateDiffCategoryFilterIndicator();
-    updateDiffStatusFilterOptions();
     diffSearchInput.value = "";
     diffStatusFilter.value = "";
     diffSortSelect.value = "delta-asc";
+    // applyDiffFilters() rebuilds both dropdowns' options (with fresh
+    // cross-filtered counts against the just-reset defaults) as part of its
+    // normal end-of-run bookkeeping – no need to do it twice here.
     applyDiffFilters();
   }
 

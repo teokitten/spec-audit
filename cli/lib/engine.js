@@ -62,9 +62,9 @@
     required: "Ambiguous required status",
     semantic: "Semantic inconsistencies",
     unresolvable: "Unresolvable references",
-    "parse-error": "Endpoints that failed to parse"
+    "parse-error": "Endpoints with parsing issues"
   };
-  var CATEGORY_ORDER = ["description", "errors", "examples", "constraints", "required", "low-quality", "semantic", "unresolvable", "parse-error"];
+  var CATEGORY_ORDER = ["unresolvable", "parse-error", "description", "errors", "constraints", "required", "examples", "semantic", "low-quality"];
 
   // Categories a user can turn off as a single unit. "unresolvable" and
   // "parse-error" are deliberately excluded – they flag structural problems
@@ -97,10 +97,12 @@
 
   // Spec-wide checks are computed once across the whole document rather than
   // per endpoint, so they're configured and reported separately from
-  // CONFIGURABLE_CATEGORIES/SEMANTIC_SUBCHECKS – see findTerminologyInconsistencies
-  // and auditSpec's `terminologyIssues` result field.
+  // CONFIGURABLE_CATEGORIES/SEMANTIC_SUBCHECKS – see findTerminologyInconsistencies/
+  // detectNamingConventions and auditSpec's `terminologyIssues`/
+  // `namingConventionIssue` result fields.
   var SPEC_WIDE_CHECKS = [
-    { key: "spec-wide-terminology", label: "Inconsistent field descriptions", defaultEnabled: true }
+    { key: "spec-wide-terminology", label: "Inconsistent field descriptions", defaultEnabled: true },
+    { key: "spec-wide-naming-convention", label: "Inconsistent naming convention", defaultEnabled: true }
   ];
   var SPEC_WIDE_CHECK_DEFAULTS = {};
   SPEC_WIDE_CHECKS.forEach(function (s) { SPEC_WIDE_CHECK_DEFAULTS[s.key] = s.defaultEnabled; });
@@ -749,15 +751,23 @@
     });
   }
 
-  function findTerminologyInconsistencies(spec) {
-    var occurrencesByKey = {};
-
+  // Shared walk over every parameter name and schema property name in the
+  // spec (parameters on every path/operation, named component schemas, and
+  // inline request/response schemas) – used by both
+  // findTerminologyInconsistencies (which compares descriptions for the same
+  // name) and detectNamingConventions (which only looks at the names
+  // themselves). Returns a flat list of { name, description, location }
+  // entries; description is null when missing, so callers that don't care
+  // about it (naming conventions) don't need to filter around isMissing().
+  function collectFieldOccurrences(spec) {
+    var entries = [];
     function record(name, description, location) {
-      if (!name || isMissing(description)) return;
-      var key = String(name).trim().toLowerCase();
-      if (!key || GENERIC_PROPERTY_NAMES.indexOf(key) !== -1) return;
-      if (!occurrencesByKey[key]) occurrencesByKey[key] = { name: String(name).trim(), entries: [] };
-      occurrencesByKey[key].entries.push({ description: String(description).trim(), location: location });
+      if (!name) return;
+      entries.push({
+        name: String(name).trim(),
+        description: isMissing(description) ? null : String(description).trim(),
+        location: location
+      });
     }
 
     var paths = spec.paths || {};
@@ -836,6 +846,19 @@
       });
     });
 
+    return entries;
+  }
+
+  function findTerminologyInconsistencies(spec) {
+    var occurrencesByKey = {};
+    collectFieldOccurrences(spec).forEach(function (e) {
+      if (e.description == null) return;
+      var key = e.name.toLowerCase();
+      if (!key || GENERIC_PROPERTY_NAMES.indexOf(key) !== -1) return;
+      if (!occurrencesByKey[key]) occurrencesByKey[key] = { name: e.name, entries: [] };
+      occurrencesByKey[key].entries.push({ description: e.description, location: e.location });
+    });
+
     // Group -> dedupe by normalized description -> flag if any pair of
     // distinct descriptions falls below the similarity threshold.
     var results = [];
@@ -878,6 +901,83 @@
     return results;
   }
 
+  // ---------------------------------------------------------------------
+  // Spec-wide check: naming convention consistency. Same "computed once
+  // across the whole document" shape as the terminology check above –
+  // reported separately (auditSpec's `namingConventionIssue`), not folded
+  // into per-endpoint scoring.
+  // ---------------------------------------------------------------------
+
+  // Classifies a name into one casing bucket. Only names built from letters,
+  // digits, and underscores are considered at all – anything else (kebab-
+  // case, dotted names) goes straight to "other" since it can't be snake or
+  // camel by definition. "camelCase" requires the name to start with a
+  // lowercase letter specifically so PascalCase (e.g. "UserId") lands in
+  // "other" instead of being folded into camelCase – they're different
+  // conventions even though both use internal capitals. Single-word,
+  // all-lowercase names ("id", "status") go to "lowercase": they don't
+  // distinguish snake_case from camelCase (there's no word boundary to mark
+  // either way), so they're neutral rather than evidence of either style.
+  function classifyNamingConvention(rawName) {
+    var name = String(rawName || "").trim();
+    if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return "other";
+    var hasUnderscore = name.indexOf("_") !== -1;
+    var hasUpper = /[A-Z]/.test(name);
+    if (hasUnderscore) return hasUpper ? "other" : "snake_case";
+    if (!hasUpper) return "lowercase";
+    return /^[a-z]/.test(name) ? "camelCase" : "other";
+  }
+
+  // Below this many occurrences, a minority casing style reads as noise (a
+  // handful of names borrowed verbatim from an external API, a couple of
+  // typos) rather than a genuine spec-wide inconsistency worth flagging –
+  // same order of magnitude as this file's other minimum-occurrence
+  // thresholds (see MAX_DISTINCT_DESCRIPTIONS_TO_FLAG above).
+  var NAMING_CONVENTION_MIN_OCCURRENCES = 5;
+  var NAMING_CONVENTION_MAX_EXAMPLES = 10;
+
+  function detectNamingConventions(spec) {
+    var buckets = { snake_case: [], camelCase: [], other: [], lowercase: [] };
+    collectFieldOccurrences(spec).forEach(function (e) {
+      buckets[classifyNamingConvention(e.name)].push(e);
+    });
+
+    var snakeCount = buckets.snake_case.length;
+    var camelCount = buckets.camelCase.length;
+    if (snakeCount < NAMING_CONVENTION_MIN_OCCURRENCES || camelCount < NAMING_CONVENTION_MIN_OCCURRENCES) {
+      return null;
+    }
+
+    var dominantKey = snakeCount >= camelCount ? "snake_case" : "camelCase";
+    var minorityKey = dominantKey === "snake_case" ? "camelCase" : "snake_case";
+    var minorityEntries = buckets[minorityKey];
+
+    // One example location per distinct minority name, capped at 10 names –
+    // a name repeated across dozens of endpoints would otherwise crowd out
+    // other offending names without adding new information.
+    var examplesByName = {};
+    var exampleOrder = [];
+    minorityEntries.forEach(function (e) {
+      if (!examplesByName[e.name]) {
+        examplesByName[e.name] = e.location;
+        exampleOrder.push(e.name);
+      }
+    });
+
+    return {
+      counts: { snakeCase: snakeCount, camelCase: camelCount, other: buckets.other.length, lowercase: buckets.lowercase.length },
+      dominant: { convention: dominantKey, count: buckets[dominantKey].length },
+      minority: {
+        convention: minorityKey,
+        count: minorityEntries.length,
+        distinctCount: exampleOrder.length,
+        examples: exampleOrder.slice(0, NAMING_CONVENTION_MAX_EXAMPLES).map(function (name) {
+          return { name: name, location: examplesByName[name] };
+        })
+      }
+    };
+  }
+
   function gradeFor(score) {
     if (score >= 90) return "A";
     if (score >= 75) return "B";
@@ -893,7 +993,7 @@
   // scored" lives entirely in the engine, and rendering only ever displays
   // numbers it's handed.
   // ---------------------------------------------------------------------
-  function summarize(endpoints) {
+  function summarize(endpoints, enabledCategories) {
     var overallScore = endpoints.length
       ? Math.round(endpoints.reduce(function (s, e) { return s + e.score; }, 0) / endpoints.length)
       : 0;
@@ -907,9 +1007,26 @@
       });
     });
 
-    var categoryBreakdown = CATEGORY_ORDER.filter(function (c) { return byCategory[c]; })
-      .map(function (c) { return { category: c, label: CATEGORY_LABELS[c] || c, count: byCategory[c] }; })
-      .sort(function (a, b) { return b.count - a.count; });
+    // A category is shown even at a count of 0 as long as it actually ran,
+    // so a clean result ("ran, found nothing") is never confused with a
+    // disabled check ("didn't run at all"). "unresolvable" and "parse-error"
+    // aren't configurable, so they always ran; "semantic" ran if at least one
+    // of its sub-checks was enabled; everything else in CONFIGURABLE_CATEGORIES
+    // ran only if explicitly (or by default) enabled.
+    function categoryRan(c) {
+      if (c === "unresolvable" || c === "parse-error") return true;
+      if (c === "semantic") {
+        return !enabledCategories || SEMANTIC_SUBCHECKS.some(function (s) { return enabledCategories.has(s.key); });
+      }
+      return !enabledCategories || enabledCategories.has(c);
+    }
+
+    // Fixed severity order (CATEGORY_ORDER), not sorted by count – a category's
+    // position never moves regardless of how many issues a given spec has in
+    // it, so the same category always ranks the same relative to the others
+    // across different specs.
+    var categoryBreakdown = CATEGORY_ORDER.filter(categoryRan)
+      .map(function (c) { return { category: c, label: CATEGORY_LABELS[c] || c, count: byCategory[c] || 0 }; });
 
     return {
       overallScore: overallScore,
@@ -1004,10 +1121,37 @@
           categoryChanges: diffCategoryCounts(categoryCountsFor(prevE.issues), categoryCountsFor(currE.issues))
         };
       }
+      // A "new" endpoint's issues are ALL new (there was no previous version
+      // to compare against), and a "removed" endpoint's issues are all gone
+      // – both are genuine category-level changes, not an empty diff. Reusing
+      // diffCategoryCounts/categoryCountsFor against an empty {} on the
+      // missing side keeps this consistent with the matched-endpoint case
+      // above instead of hardcoding categoryChanges to [], which silently
+      // dropped new/removed endpoints from the per-category filter even when
+      // they were exactly what drove a real categoryDeltas change (the bug:
+      // a spec-wide category delta caused by added/removed endpoints showed
+      // up correctly in the aggregate "Category changes" breakdown, but the
+      // per-endpoint filter had nothing to match against).
       if (currE) {
-        return { path: currE.path, method: currE.method, status: "new", previousScore: null, currentScore: currE.score, scoreDelta: null, categoryChanges: [] };
+        return {
+          path: currE.path,
+          method: currE.method,
+          status: "new",
+          previousScore: null,
+          currentScore: currE.score,
+          scoreDelta: null,
+          categoryChanges: diffCategoryCounts({}, categoryCountsFor(currE.issues))
+        };
       }
-      return { path: prevE.path, method: prevE.method, status: "removed", previousScore: prevE.score, currentScore: null, scoreDelta: null, categoryChanges: [] };
+      return {
+        path: prevE.path,
+        method: prevE.method,
+        status: "removed",
+        previousScore: prevE.score,
+        currentScore: null,
+        scoreDelta: null,
+        categoryChanges: diffCategoryCounts(categoryCountsFor(prevE.issues), {})
+      };
     });
 
     var prevCategoryCounts = {};
@@ -1072,7 +1216,7 @@
         stage: "extract"
       };
     }
-    var summary = summarize(endpoints);
+    var summary = summarize(endpoints, enabledCategories);
     // Spec-wide, not owned by any endpoint – gated the same way the
     // semantic sub-checks are: an explicit Set decides, an omitted Set
     // falls back to this check's own default (on).
@@ -1080,13 +1224,18 @@
       ? enabledCategories.has("spec-wide-terminology")
       : SPEC_WIDE_CHECK_DEFAULTS["spec-wide-terminology"];
     var terminologyIssues = terminologyEnabled ? findTerminologyInconsistencies(parsed.spec) : [];
+    var namingConventionEnabled = enabledCategories
+      ? enabledCategories.has("spec-wide-naming-convention")
+      : SPEC_WIDE_CHECK_DEFAULTS["spec-wide-naming-convention"];
+    var namingConventionIssue = namingConventionEnabled ? detectNamingConventions(parsed.spec) : null;
     return {
       endpoints: endpoints,
       overallScore: summary.overallScore,
       overallGrade: summary.overallGrade,
       totalIssues: summary.totalIssues,
       categoryBreakdown: summary.categoryBreakdown,
-      terminologyIssues: terminologyIssues
+      terminologyIssues: terminologyIssues,
+      namingConventionIssue: namingConventionIssue
     };
   }
 
@@ -1105,6 +1254,9 @@ module.exports = {
   validateSpec: validateSpec,
   extractEndpoints: extractEndpoints,
   findTerminologyInconsistencies: findTerminologyInconsistencies,
+  detectNamingConventions: detectNamingConventions,
+  classifyNamingConvention: classifyNamingConvention,
+  collectFieldOccurrences: collectFieldOccurrences,
   gradeFor: gradeFor,
   summarize: summarize,
   validateExportedReport: validateExportedReport,
