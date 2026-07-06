@@ -15,8 +15,6 @@
     --text: #FAFAF9;
     --text-secondary: #A8A29E;
     --text-muted: #78716C;
-    --positive: #4ADE80;
-    --negative: #F87171;
   }
 
   * { box-sizing: border-box; }
@@ -475,7 +473,7 @@
 
   .diff-error {
     font-size: 13px;
-    color: var(--negative);
+    color: var(--accent);
     margin: 14px 0 0;
   }
   .diff-error[hidden] { display: none; }
@@ -551,13 +549,20 @@
     color: var(--text-muted);
   }
 
-  .delta-positive { color: var(--positive); }
-  .delta-negative { color: var(--negative); }
+  /* Monochrome-orange only: a regression (more issues, lower score) is the
+     one thing that needs attention, so it gets the app's sole signal color;
+     an improvement is just "fine or better" and reads as muted neutral text,
+     same as "no change" – there's no green/red good/bad coding here. */
+  .delta-positive { color: var(--text-secondary); }
+  .delta-negative { color: var(--accent); }
   .delta-neutral { color: var(--text-muted); }
 
   th.col-status { text-align: left; }
   td.col-status { text-align: left; }
 
+  /* One neutral, bordered-tag look for every status – same treatment as
+     .method-pill elsewhere in the app – differentiated only by their text
+     label ("Regressed"/"Improved"/etc.), not by color-coding status meaning. */
   .status-pill {
     display: inline-block;
     font-size: 11px;
@@ -565,12 +570,9 @@
     letter-spacing: 0.03em;
     border-radius: 4px;
     padding: 3px 8px;
+    background: var(--bg);
+    color: var(--text-secondary);
   }
-  .status-pill.status-regressed { background: rgba(248, 113, 113, 0.15); color: var(--negative); }
-  .status-pill.status-improved { background: rgba(74, 222, 128, 0.15); color: var(--positive); }
-  .status-pill.status-unchanged { background: var(--bg); color: var(--text-muted); }
-  .status-pill.status-new { background: rgba(74, 222, 128, 0.15); color: var(--positive); }
-  .status-pill.status-removed { background: var(--bg); color: var(--text-muted); }
 
   .diff-category-changes {
     margin-top: 10px;
@@ -587,6 +589,56 @@
   }
   tbody tr.endpoint-row.no-detail:hover {
     background: none;
+  }
+
+  /* Same accent-bordered note treatment as .error-card's border and
+     .diff-config-note's text color – a state that needs the reader's
+     attention before trusting the numbers below it. */
+  .preview-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    background: rgba(249, 115, 22, 0.08);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .preview-banner[hidden] {
+    display: none;
+  }
+  .preview-banner-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .preview-banner-btn:hover {
+    color: var(--text);
+  }
+
+  /* Same note this points at the report is contradicted without – the input
+     area needs its own, independent "this isn't yours" signal since a user
+     scrolling straight to the textarea would otherwise see it pre-filled
+     with no explanation. Dismissed implicitly by typing/pasting over it
+     (see the specInput "input" listener), not a separate close button. */
+  .preview-input-note {
+    font-size: 13px;
+    font-style: italic;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  .preview-input-note[hidden] {
+    display: none;
   }
 
   /* Summary card */
@@ -1127,6 +1179,7 @@
 
     <div class="input-row">
       <label class="field-label" for="specInput">Paste an OpenAPI spec (JSON or YAML)</label>
+      <p class="preview-input-note" id="previewInputNote" hidden>This is an example spec, shown so you can see the tool in action – not anything you provided. Start typing or paste your own to replace it.</p>
       <textarea id="specInput" spellcheck="false"></textarea>
       <div class="paste-actions">
         <button id="runBtn" class="btn-primary" type="button">Run audit</button>
@@ -1172,6 +1225,10 @@
   </section>
 
   <section id="reportSection" hidden>
+    <div class="preview-banner" id="previewBanner" hidden>
+      <span>Example preview – this is a real audit of a small sample spec, so you can see the tool in action.</span>
+      <button type="button" class="preview-banner-btn" id="previewBannerBtn">Paste your own spec above to audit it</button>
+    </div>
     <section class="card summary-card">
       <div class="summary-actions">
         <button type="button" class="btn-secondary" id="exportJsonBtn" disabled>Export JSON</button>
@@ -2695,6 +2752,200 @@
     '<path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
     '</svg>';
 
+  // Tiny hand-written OpenAPI 3.0 document embedded directly (no network
+  // fetch) so the landing preview renders instantly. Each gap below is real,
+  // not staged after the fact: GET /widgets' `status` parameter is a
+  // free-form string with no enum (constraints); POST /widgets has neither a
+  // summary nor a description (description); GET /widgets/{widgetId}'s 200
+  // response has a schema but no example value (examples); DELETE
+  // /widgets/{widgetId} documents only its success response, no 4xx/5xx at
+  // all (errors). GET /health is left clean, so the preview also shows what
+  // a passing endpoint looks like, not just a wall of issues.
+  //
+  // The two spec-wide checks are demonstrated too: `widgetId` is a real path
+  // parameter on both GET and DELETE /widgets/{widgetId}, given two
+  // genuinely different descriptions below (one about reading a resource,
+  // one about the consequence of deleting it) – similar enough wording would
+  // score as consistent, so these are worded to actually diverge, not just
+  // paraphrase each other (triggers findTerminologyInconsistencies). And
+  // `created_at`/`updated_at`/`is_active` (snake_case) vs `ownerId`
+  // (camelCase) are repeated across the three response schemas – and
+  // `ownerId` also via the two `widgetId` path parameters – so each casing
+  // bucket clears NAMING_CONVENTION_MIN_OCCURRENCES (5) on its own, not just
+  // one stray token (triggers detectNamingConventions). `status`/`id`/`name`
+  // stay out of this since they're single-word/generic – GENERIC_PROPERTY_NAMES
+  // excludes them from the terminology check, and single-word names are
+  // casing-neutral ("lowercase" bucket) for the naming-convention check.
+  var LANDING_PREVIEW_SPEC = {
+    openapi: "3.0.3",
+    info: {
+      title: "Widget Catalog API",
+      version: "1.0.0",
+      description: "A tiny illustrative API for browsing and managing widgets."
+    },
+    paths: {
+      "/widgets": {
+        get: {
+          summary: "List widgets",
+          description: "Returns a page of widgets, optionally filtered by status or owner.",
+          parameters: [
+            {
+              name: "status",
+              in: "query",
+              description: "Filter by widget status.",
+              schema: { type: "string" }
+            },
+            {
+              name: "ownerId",
+              in: "query",
+              description: "Only return widgets owned by this user.",
+              required: false,
+              schema: { type: "string" }
+            }
+          ],
+          responses: {
+            "200": {
+              description: "A page of widgets.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        name: { type: "string" },
+                        status: { type: "string" },
+                        ownerId: { type: "string", description: "ID of the user who owns this widget." },
+                        created_at: { type: "string", format: "date-time", description: "When this widget was created." },
+                        updated_at: { type: "string", format: "date-time", description: "When this widget was last modified." },
+                        is_active: { type: "boolean", description: "Whether this widget is currently active." }
+                      }
+                    }
+                  },
+                  example: [{ id: "w_1", name: "Gadget", status: "active", ownerId: "u_1", created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-02T00:00:00Z", is_active: true }]
+                }
+              }
+            },
+            "400": { description: "The request was malformed." }
+          }
+        },
+        post: {
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    status: { type: "string" },
+                    ownerId: { type: "string", description: "ID of the user who owns this widget." }
+                  }
+                },
+                example: { name: "Gadget", status: "active", ownerId: "u_1" }
+              }
+            }
+          },
+          responses: {
+            "201": {
+              description: "The widget was created.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string" },
+                      status: { type: "string" },
+                      ownerId: { type: "string", description: "ID of the user who owns this widget." },
+                      created_at: { type: "string", format: "date-time", description: "When this widget was created." },
+                      updated_at: { type: "string", format: "date-time", description: "When this widget was last modified." },
+                      is_active: { type: "boolean", description: "Whether this widget is currently active." }
+                    }
+                  },
+                  example: { id: "w_2", name: "Gadget", status: "active", ownerId: "u_1", created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z", is_active: true }
+                }
+              }
+            },
+            "400": { description: "The request body was invalid." }
+          }
+        }
+      },
+      "/widgets/{widgetId}": {
+        get: {
+          summary: "Get a widget",
+          description: "Returns a single widget by ID.",
+          parameters: [
+            {
+              name: "widgetId",
+              in: "path",
+              required: true,
+              description: "The widget's unique ID.",
+              schema: { type: "string" }
+            }
+          ],
+          responses: {
+            "200": {
+              description: "The requested widget.",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string" },
+                      status: { type: "string" },
+                      ownerId: { type: "string", description: "ID of the user who owns this widget." },
+                      created_at: { type: "string", format: "date-time", description: "When this widget was created." },
+                      updated_at: { type: "string", format: "date-time", description: "When this widget was last modified." },
+                      is_active: { type: "boolean", description: "Whether this widget is currently active." }
+                    }
+                  }
+                }
+              }
+            },
+            "404": { description: "No widget exists with this ID." }
+          }
+        },
+        delete: {
+          summary: "Delete a widget",
+          description: "Permanently removes a widget.",
+          parameters: [
+            {
+              name: "widgetId",
+              in: "path",
+              required: true,
+              description: "Identifies which widget record to permanently remove from the catalog.",
+              schema: { type: "string" }
+            }
+          ],
+          responses: {
+            "204": { description: "The widget was deleted." }
+          }
+        }
+      },
+      "/health": {
+        get: {
+          summary: "Health check",
+          description: "Returns service status – used by uptime monitors.",
+          responses: {
+            "200": {
+              description: "The service is healthy.",
+              content: {
+                "application/json": {
+                  schema: { type: "object", properties: { ok: { type: "boolean" } } },
+                  example: { ok: true }
+                }
+              }
+            },
+            "503": { description: "The service is unavailable or still starting up." }
+          }
+        }
+      }
+    }
+  };
+
   // ---------------------------------------------------------------------
   // DOM references
   // ---------------------------------------------------------------------
@@ -2711,6 +2962,10 @@
   var errorCard = document.getElementById("errorCard");
   var errorText = document.getElementById("errorText");
   var reportSection = document.getElementById("reportSection");
+  var previewBanner = document.getElementById("previewBanner");
+  var previewBannerBtn = document.getElementById("previewBannerBtn");
+  var previewInputNote = document.getElementById("previewInputNote");
+  var inputCard = document.getElementById("inputCard");
   var reportTabBtns = document.querySelectorAll(".report-tab");
   var tabPanelEndpoints = document.getElementById("tabPanelEndpoints");
   var tabPanelTerminology = document.getElementById("tabPanelTerminology");
@@ -3720,6 +3975,45 @@
   // ---------------------------------------------------------------------
   // Orchestration
   // ---------------------------------------------------------------------
+  // Shared by a real audit run and the landing preview below – the only
+  // difference is isPreview, which decides state.specSource and whether the
+  // preview banner shows. Everything else (state, every render function,
+  // export enabling, the diff view) is exactly what a real run does, so the
+  // preview can never diverge from what running a real spec looks like.
+  function finishAudit(endpoints, parsedSpec, isPreview) {
+    state.endpoints = endpoints;
+    state.categoryFilter = null;
+    state.terminologyFilter = null;
+    state.specSource = isPreview ? "Example preview" : (state.specSource || "Pasted directly");
+    state.terminologyIssues = state.enabledCategories.has("spec-wide-terminology")
+      ? SpecAuditEngine.findTerminologyInconsistencies(parsedSpec)
+      : [];
+    state.namingConventionIssue = state.enabledCategories.has("spec-wide-naming-convention")
+      ? SpecAuditEngine.detectNamingConventions(parsedSpec)
+      : null;
+    state.terminologyPage = 1;
+    renderSummary(endpoints);
+    renderTerminologyBreakdown();
+    renderNamingConventionBreakdown();
+    renderNamingConventionDetail();
+    updateTerminologyFilterSelectOptions();
+    terminologySearchInput.value = "";
+    terminologySortSelect.value = "occurrences-desc";
+    applyTerminologyFilters();
+    updateCategoryFilterIndicator();
+    updateTerminologyFilterIndicator();
+    searchInput.value = "";
+    gradeFilter.value = "";
+    sortSelect.value = "score-asc";
+    applyFilters();
+    reportSection.hidden = false;
+    previewBanner.hidden = !isPreview;
+    previewInputNote.hidden = !isPreview;
+    exportJsonBtn.disabled = false;
+    exportHtmlBtn.disabled = false;
+    updateDiff();
+  }
+
   function runAudit() {
     clearError();
     reportSection.hidden = true;
@@ -3756,35 +4050,7 @@
               runBtn.disabled = false;
               return;
             }
-            state.endpoints = endpoints;
-            state.categoryFilter = null;
-            state.terminologyFilter = null;
-            state.specSource = state.specSource || "Pasted directly";
-            state.terminologyIssues = state.enabledCategories.has("spec-wide-terminology")
-              ? SpecAuditEngine.findTerminologyInconsistencies(parsed.spec)
-              : [];
-            state.namingConventionIssue = state.enabledCategories.has("spec-wide-naming-convention")
-              ? SpecAuditEngine.detectNamingConventions(parsed.spec)
-              : null;
-            state.terminologyPage = 1;
-            renderSummary(endpoints);
-            renderTerminologyBreakdown();
-            renderNamingConventionBreakdown();
-            renderNamingConventionDetail();
-            updateTerminologyFilterSelectOptions();
-            terminologySearchInput.value = "";
-            terminologySortSelect.value = "occurrences-desc";
-            applyTerminologyFilters();
-            updateCategoryFilterIndicator();
-            updateTerminologyFilterIndicator();
-            searchInput.value = "";
-            gradeFilter.value = "";
-            sortSelect.value = "score-asc";
-            applyFilters();
-            reportSection.hidden = false;
-            exportJsonBtn.disabled = false;
-            exportHtmlBtn.disabled = false;
-            updateDiff();
+            finishAudit(endpoints, parsed.spec, false);
             setStatus("Audited " + endpoints.length + " endpoints.");
           } catch (e) {
             showError("Something went wrong while checking this spec: " + e.message);
@@ -3803,12 +4069,54 @@
 
   runBtn.addEventListener("click", runAudit);
 
+  // Landing preview: a real audit of a small embedded spec, shown
+  // automatically so a first-time visitor sees the tool in action before
+  // touching anything. Only runs if the input area is genuinely untouched –
+  // guards against the unlikely case of a real run already having started
+  // (or the textarea already holding something) by the time this executes.
+  // The textarea is pre-filled with the actual spec text being audited (not
+  // left blank) so scrolling up to it shows something real instead of an
+  // empty box that contradicts the report below it.
+  function runLandingPreview() {
+    if (specInput.value.trim() || state.endpoints.length > 0) return;
+    try {
+      var validationError = SpecAuditEngine.validateSpec(LANDING_PREVIEW_SPEC);
+      if (validationError) return;
+      var endpoints = SpecAuditEngine.extractEndpoints(LANDING_PREVIEW_SPEC, state.enabledCategories);
+      if (endpoints.length === 0) return;
+      specInput.value = JSON.stringify(LANDING_PREVIEW_SPEC, null, 2);
+      finishAudit(endpoints, LANDING_PREVIEW_SPEC, true);
+    } catch (e) {
+      // A broken preview must never block the real tool – fail silently and
+      // leave the report area empty, same as before this feature existed.
+    }
+  }
+
+  // Clears the pre-filled example (not just scrolls to it) so the user lands
+  // on a genuinely blank field ready to paste into, not an already-full
+  // textarea that still visually says "preview" – scrolling to a full box
+  // with nothing else changing is what made this link look like it did
+  // nothing. The report itself (and its banner) stays showing the preview
+  // until a real audit actually runs, same as clearing the box by hand.
+  previewBannerBtn.addEventListener("click", function () {
+    specInput.value = "";
+    state.specSource = null;
+    previewInputNote.hidden = true;
+    inputCard.scrollIntoView({ block: "start" });
+    specInput.focus();
+  });
+
+  runLandingPreview();
+
   // Only real user edits should clear the "loaded sample" indicator – setting
   // .value programmatically (from the example/URL loaders below) doesn't fire
-  // "input", so this only reacts to actual typing/pasting.
+  // "input", so this only reacts to actual typing/pasting. Also dismisses the
+  // preview input note the moment the user starts typing/pasting over the
+  // pre-filled example, even if they never clicked the banner link first.
   specInput.addEventListener("input", function () {
     exampleSelect.value = "";
     state.specSource = null;
+    previewInputNote.hidden = true;
   });
 
   fetchUrlBtn.addEventListener("click", function () {
